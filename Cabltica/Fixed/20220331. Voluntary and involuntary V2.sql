@@ -164,15 +164,15 @@ SELECT f.*,voluntario, involuntario
 FROM FixedCustomerBase_MvmtFlag f LEFT JOIN ChurnersTotales 
 ON Fixed_account=act_acct_cd AND DATE_TRUNC(safe_cast(Fixed_month as date),month)=DATE_TRUNC(safe_cast(MesChurnF as date),month)
 )
---,ChurnerMovementTable AS(
+,ChurnerMovementTable AS(
 SELECT *,
 CASE 
 WHEN voluntario is not null then "Voluntary"
 WHEN involuntario is not null THEN "Involuntary" Else null end as churners
 FROM UnionChurners
 ORDER BY FIXED_MONTH
-/*)
+)
 
-SELECT Fixed_month, COUNT(churners)
+SELECT Fixed_Month,COUNT(voluntario) AS Voluntary,COUNT(involuntario) AS Involuntary
 FROM ChurnerMovementTable
-GROUP BY fixed_month*/
+GROUP BY fixed_month
