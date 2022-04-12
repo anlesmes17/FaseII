@@ -55,7 +55,6 @@ Month_Last_Day, MIX, MORA, VO_FI_TOT_MRC_AMT, BB_FI_TOT_MRC_AMT, TV_FI_TOT_MRC_A
 ,AverageMRC_User AS(
   SELECT DISTINCT DATE_TRUNC(DATE(FECHA_EXTRACCION),MONTH) AS Month, act_acct_cd, avg(VO_FI_TOT_MRC_AMT + BB_FI_TOT_MRC_AMT + TV_FI_TOT_MRC_AMT) AS AvgMRC
   FROM CR_UsefulFields_BOM
-  --WHERE fi_tot_mrc_amt IS NOT NULL AND mrc_amt <> 0
   GROUP BY Month, act_acct_cd
 )
 
@@ -85,12 +84,11 @@ Month_Last_Day, MIX, MORA, VO_FI_TOT_MRC_AMT, BB_FI_TOT_MRC_AMT, TV_FI_TOT_MRC_A
     WHEN B_Tech_Type IS NULL AND safe_cast(B_RGU_TV AS string)="NextGenTV" THEN "FTTH"
     ELSE "HFC" END AS B_TechAdj,
     CASE
-    WHEN B_Tenure <=6 THEN "EARLY TENURE"
-    WHEN B_Tenure >6 THEN "LATE TENURE"
+    WHEN B_Tenure <6 THEN "Early Tenure"
+    WHEN B_Tenure >=6 THEN "Late Tenure"
     ELSE NULL END AS B_TenureType
     FROM CustomerBase_BOM 
 )
-
 
 ,CustomerBase_EOM AS(
     
@@ -120,10 +118,8 @@ Month_Last_Day, MIX, MORA, VO_FI_TOT_MRC_AMT, BB_FI_TOT_MRC_AMT, TV_FI_TOT_MRC_A
     WHEN E_Tenure <6 THEN "EARLY TENURE"
     WHEN E_Tenure >=6 THEN "LATE TENURE"
     ELSE NULL END AS E_TenureType
-
     FROM CustomerBase_EOM 
 )
-
 
 ,FixedCustomerBase AS(
     SELECT DISTINCT
@@ -141,11 +137,10 @@ Month_Last_Day, MIX, MORA, VO_FI_TOT_MRC_AMT, BB_FI_TOT_MRC_AMT, TV_FI_TOT_MRC_A
 )
 
 ,FixedCustomerBase_MvmtFlag AS(
-
  SELECT f.*,
  CASE WHEN E_NumRGUs > B_NumRGUs THEN "Upsell"
  WHEN E_NumRGUs < B_NumRGUs THEN "Downsell"
- WHEN E_NumRGUs = B_NumRGUs THEN "Same RGUs"
+ WHEN E_NumRGUs = B_NumRGUs THEN "Same RGUs"--Incluir Info MRC
  WHEN ActiveBOM = 0 AND ACTIVEEOM = 1 THEN "Gain_GrossAds"
  WHEN ActiveBOM = 1 AND ActiveEOM = 0 THEN "Loss"
  END AS MainMovement,
@@ -156,31 +151,34 @@ Month_Last_Day, MIX, MORA, VO_FI_TOT_MRC_AMT, BB_FI_TOT_MRC_AMT, TV_FI_TOT_MRC_A
  (E_NumRGUs - B_NumRGUs) as DIF_TOTAL_RGU
  FROM FixedCustomerBase f
 
-)
 
+
+
+)
 ,MobileUsefulFields_BOM AS (
     SELECT Date_Trunc(FECHA_PARQUE, month) AS Month, Contrato, ID_CLIENTE, NUM_IDENT, ID_ABONADO
     FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220411_cabletica_fmc_febrero` 
 )
-
 ,MobileUsefulFields_EOM AS (
     SELECT Date_Trunc(FECHA_PARQUE, month) AS Month,Contrato, ID_CLIENTE, NUM_IDENT, ID_ABONADO
     FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220411_cabletica_fmc_marzo`
 )
-
-
 ,CR_Mobile_UsefulFields AS(
 SELECT  DISTINCT *
 from (SELECT * from MobileUsefulFields_BOM b 
       UNION ALL
       SELECT * from MobileUsefulFields_EOM e)
 )
+,BaseRentaTenure AS (
+    SELECT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.20220411_cabletica_tenure_renta_mobile`
+)
 
-,MobileCustomerBase_EOM AS(
-    SELECT DISTINCT DATE_TRUNC(Month,Month) AS Month, *
+
+/*,MobileCustomerBase_BOM AS(
+    SELECT DISTINCT DATE_TRUNC(DATE_ADD(FECHA_PARQUE, INTERVAL 1 MONTH),MONTH) AS Month, ID_CLIENTE AS B_ID_Cliente, Contrato as B_Mobile_Account
     from CR_Mobile_UsefulFields 
 
-)
+)*/
 
 --------------------------------------Opening/Closing base KPIs--------------------------------------------------
 --,Opening/Closing Customer Base
@@ -234,7 +232,7 @@ ORDER BY Fixed_Month, MainMovement, GainMovement*/
 )
 
 ,BaseChurners AS (
-SELECT DISTINCT c.ACT_ACCT_CD,m.act_acct_cd, c.Maxfecha, Mora,
+SELECT DISTINCT c.ACT_ACCT_CD Account_Churners,m.act_acct_cd, c.Maxfecha, Mora,
 FROM CHURNERSCRM c LEFT JOIN MoraChurners m ON c.act_acct_cd=m.act_acct_cd AND safe_cast(c.Maxfecha as date)=safe_cast(m.FECHA_EXTRACCION as date)
 )
 
@@ -245,13 +243,17 @@ WHEN MORA<90 OR MORA IS NULL THEN "Voluntary"
 WHEN MORA>=90 THEN "Involuntary"
 ELSE NULL END AS ChurnType
 FROM BaseChurners
-)/*
+)
+,MasterTableChurners AS (
+    SELECT m.*, ChurnType FROM FixedCustomerBase_MvmtFlag m LEFT JOIN ChurnersVolInvol 
+    ON Fixed_Account=Account_Churners AND DATE_TRUNC(safe_cast(MaxFecha as date),Month)=Fixed_Month
+)
 
+/*
 SELECT DISTINCT DATE_TRUNC(Maxfecha, month) AS Month, ChurnType, count(*)
 FROM ChurnersVolInvol 
 GROUP BY Month, ChurnType
 ORDER BY Month, ChurnType desc
-
 ----------------------------------------------------Mobile----------------------------------------------------
 */
 
@@ -262,28 +264,29 @@ ORDER BY Month, ChurnType desc
 GROUP BY Month*/
 
 ,ClosingBaseWithTenure AS(
-SELECT Month, ID_CLIENTE, ID_ABONADO 
+SELECT DISTINCT Month, ID_CLIENTE, ID_ABONADO 
 --Count(Distinct ID_CLIENTE)  
 FROM MobileUsefulFields_EOM 
 GROUP BY Month, ID_CLIENTE, ID_ABONADO
 )
 
---,TenureClosingBase AS (
-    SELECT DISTINCT ID_CLIENTE, MESES_ANTIGUEDAD 
-    FROM ClosingBaseWithTenure LEFT JOIN `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.20220411_cabletica_tenure_renta_mobile`
+,TenureClosingBase AS (
+    SELECT DISTINCT ID_CLIENTE, MIN(MESES_ANTIGUEDAD) AS MESES_ANTIGUEDAD
+    FROM ClosingBaseWithTenure LEFT JOIN BaseRentaTenure 
     ON ID_ABONADO=NUM_ABONADO
+    GROUP BY ID_CLIENTE
 )
 
 ,FlagTenureClosingBase AS (
-SELECT 
+SELECT DISTINCT ID_CLIENTE,
 CASE WHEN MESES_ANTIGUEDAD <6 THEN "Early Tenure"
 WHEN MESES_ANTIGUEDAD >=6 THEN "Late Tenure"
 ELSE NULL END AS TenureClosingBase
 FROM TenureClosingBase
-)
+)/*
 SELECT TenureClosingBase, count(DISTINCT ID_CLIENTE)
 FROM FlagTenureClosingBase 
-GROUP BY TenureClosingBase
+GROUP BY TenureClosingBase*/
 
 
 /*SELECT Month, Count(Distinct ID_CLIENTE) NumClientes FROM MobileUsefulFields_EOM 
@@ -318,7 +321,6 @@ GROUP BY ChurnType*/
 SELECT DISTINCT ID_CLIENTE, TIPO_BAJA
 FROM MobileChurners m Left Join `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.20220404_cabletica_movimientos_fmc` ON ID_CLIENTE=ID_CLIENTE
 )
-
 SELECT TIPO_BAJA, COUNT(DISTINCT ID_CLIENTE)
 FROM TipoChurners
 GROUP BY TIPO_BAJA
@@ -347,12 +349,24 @@ FROM GrossAddsMrc*/
 
 ----------------------------------------------FMC------------------------------------------------------------
 
---,FMC_feb AS (
+,FMC_feb AS (
 SELECT DISTINCT Fixed_Month,Month, Fixed_Account, contrato
 FROM MobileUsefulFields_BOM m INNER JOIN FixedCustomerBase_MvmtFlag ON safe_cast(Fixed_Account as string)=m.contrato
 AND Fixed_Month=Month
 )
+,ClientesConvergentes AS(
+    SELECT F.*, c.contrato
+    FROM FixedCustomerBase_MvmtFlag f LEFT JOIN FMC_feb c ON safe_cast(f.Fixed_Account as string)=safe_cast(c.Contrato as string) 
+)
+--,Bundles AS (
+    SELECT Fixed_Month, E_TECHADJ, E_MIX, Count(*)
+    FROM ClientesConvergentes
+    WHERE contrato IS NOT NULL AND Fixed_Month="2022-02-01"
+    GROUP BY E_TechAdj, E_MIX, Fixed_Month
+) 
 
+
+/*
 ,FMC_mar AS (
     SELECT DISTINCT Fixed_Month,Month, Fixed_Account, contrato
 FROM MobileUsefulFields_EOM m INNER JOIN FixedCustomerBase_MvmtFlag ON safe_cast(Fixed_Account as string)=m.contrato
@@ -369,5 +383,4 @@ AND Fixed_Month=Month
     SELECT DISTINCT m.Fixed_Account, f.Fixed_Account
     FROM FMC_mar m LEFT JOIN FMC_feb f ON m.Fixed_Account=f.Fixed_Account
     WHERE f.Fixed_Account IS NULL
---)
-
+--)*/
