@@ -141,7 +141,9 @@ Month_Last_Day, MIX, MORA, mrcVO, mrcBB, mrcTV, /*Bill*/ from CR_UsefulFields_EO
   FROM FinalCustomerBase_BOM b FULL OUTER JOIN FinalCustomerBase_EOM e ON b.AccountBOM = e.AccountEOM AND b.Month = e.Month
 )
 
-
+,ServiceOrders AS (
+    SELECT * FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-01-12_CR_ORDENES_SERVICIO_2021-01_A_2021-11_D`
+)
 
 
 
@@ -174,33 +176,50 @@ Month_Last_Day, MIX, MORA, mrcVO, mrcBB, mrcTV, /*Bill*/ from CR_UsefulFields_EO
 
 ------------------------------------------Voluntary & Involuntary-------------------------------------------------------------
 
-,CHURNERSCRM AS(
-    SELECT  DISTINCT ACT_ACCT_CD, MAX(ChurnDate) AS Maxfecha,  DATE_TRUNC(Max(ChurnDate),month) AS MesChurnF, 
-    FROM  CR_UsefulFields
-    GROUP BY ACT_ACCT_CD
-    HAVING DATE_TRUNC(safe_cast(Maxfecha as date), MONTH) = DATE_TRUNC(MAX(FECHA_EXTRACCION),MONTH)
+,CHURNERSSO AS
+(SELECT DISTINCT RIGHT(CONCAT('0000000000',NOMBRE_CONTRATO) ,10) AS CONTRATOSO, FECHA_APERTURA,
+ FROM ServiceOrders 
+ WHERE
+  TIPO_ORDEN = "DESINSTALACION" 
+  AND (ESTADO <> "CANCELADA" OR ESTADO <> "ANULADA")
+ AND FECHA_APERTURA IS NOT NULL
+ )
+,PRIMERCHURNSO AS
+(SELECT DISTINCT RIGHT(CONCAT('0000000000',NOMBRE_CONTRATO) ,10) AS CONTRATOSO, Min(FECHA_APERTURA) as PrimerChurnSO,
+FROM ServiceOrders
+ WHERE
+  TIPO_ORDEN = "DESINSTALACION" 
+  AND (ESTADO <> "CANCELADA" OR ESTADO <> "ANULADA")
+ AND FECHA_APERTURA IS NOT NULL
+ GROUP BY CONTRATOSO
+ )
+,CHURNERSINVOLUNTARIOS AS
+(SELECT DISTINCT RIGHT(CONCAT('0000000000',NOMBRE_CONTRATO) ,10) AS CONTRATOSO, FECHA_APERTURA,
+ FROM ServiceOrders
+ WHERE
+  TIPO_ORDEN = "DESINSTALACION" 
+  AND (ESTADO <> "CANCELADA" OR ESTADO <> "ANULADA")
+  AND SUBMOTIVO = "MOROSIDAD"
+ AND FECHA_APERTURA IS NOT NULL
+ )
+,CHURNTYPEFLAGSO AS(
+    SELECT DISTINCT c. CONTRATOSO, c.PrimerChurnSO,
+    CASE WHEN t.CONTRATOSO IS NULL THEN "Voluntario"
+    WHEN t.CONTRATOSO IS NOT NULL THEN "Involuntario" END AS ChurnType
+    FROM PRIMERCHURNSO c LEFT JOIN CHURNERSINVOLUNTARIOS t ON c.CONTRATOSO = t.CONTRATOSO AND t.FECHA_APERTURA = c.PrimerChurnSO
 )
 
-,MoraChurners AS (
-    SELECT DISTINCT ACT_ACCT_CD, FECHA_EXTRACCION, MORA
-    FROM CR_UsefulFields 
-    GROUP BY ACT_ACCT_CD, MORA, FECHA_EXTRACCION
+,CustomerBaseWithChurners AS(
+ SELECT DISTINCT c.*, RIGHT(CONCAT('0000000000',Fixed_Account) ,10) AS act_acct_cd
+ FROM SPINMOVEMENTBASE c 
 )
 
-,BaseChurners AS (
-SELECT DISTINCT c.ACT_ACCT_CD Account_Churners,m.act_acct_cd, c.Maxfecha, Mora,
-FROM CHURNERSCRM c LEFT JOIN MoraChurners m ON c.act_acct_cd=m.act_acct_cd AND safe_cast(c.Maxfecha as date)=safe_cast(m.FECHA_EXTRACCION as date)
-)
-
-,ChurnersVolInvol as(
-SELECT *,
-CASE 
-WHEN MORA<90 OR MORA IS NULL THEN "Voluntary"
-WHEN MORA>=90 THEN "Involuntary"
-ELSE NULL END AS ChurnType
-FROM BaseChurners
-)
---,MasterTableChurners AS (
-    SELECT m.*, ChurnType FROM MAINMOVEMENTBASE m LEFT JOIN ChurnersVolInvol 
-    ON Fixed_Account=Account_Churners AND DATE_TRUNC(safe_cast(MaxFecha as date),Month)=Fixed_Month
+--,CRUCECHURNERSCRM AS(
+ SELECT DISTINCT C.*, ChurnType
+ FROM CustomerBaseWithChurners  c LEFT JOIN CHURNTYPEFLAGSO s ON safe_cast(s.Contratoso as string)= act_acct_cd AND date_trunc(primerchurnSO, month) = Fixed_Month
 --)
+
+/*SELECT Fixed_Month, ChurnType, count(*)
+FROM CRUCECHURNERSCRM
+GROUP BY 1,2
+ORDER BY 1 DESC*/
