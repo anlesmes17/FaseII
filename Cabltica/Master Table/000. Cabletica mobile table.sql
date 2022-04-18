@@ -1,3 +1,8 @@
+CREATE OR REPLACE TABLE
+
+`gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Mobile_DashboardInput` AS
+
+###################################### Mobile Useful Fields ####################################################
 WITH 
 
 MobileUsefulFields_BOM AS (
@@ -42,15 +47,15 @@ from (SELECT * from MobileUsefulFields_BOM b
     CASE WHEN (B_Mobile_Account IS NOT NULL AND E_Mobile_Account IS NOT NULL) OR (B_Mobile_Account IS NOT NULL AND E_Mobile_Account IS NULL) THEN B_Mobile_Account
     WHEN (B_Mobile_Account IS NULL AND E_Mobile_Account IS NOT NULL) THEN E_Mobile_Account
     END AS Mobile_Account,
-    CASE WHEN B_Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS ActiveBOM,
-    CASE WHEN E_Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS ActiveEOM,
+    CASE WHEN B_Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS Mobile_ActiveBOM,
+    CASE WHEN E_Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS Mobile_ActiveEOM,
     B_Contrato,
     E_Contrato
     FROM MobileCustomerBase_BOM b FULL OUTER JOIN MobileCustomerBase_EOM e ON B_Mobile_Account=E_Mobile_Account AND b.Month=e.Month
  
 )
 /*SELECT DISTINCT MOBILE_MONTH, COUNT(DISTINCT Mobile_Account) FROM MobileCustomerBase
---WHERE ActiveBOM=1 AND ActiveEOM=1
+--WHERE Mobile_ActiveBOM=1 AND Mobile_ActiveEOM=1
 GROUP BY MOBILE_Month*/
 
 
@@ -73,9 +78,9 @@ FROM TenureCustomerBase
 
 ,MAINMOVEMENTS AS (
     SELECT DISTINCT *,
-    CASE WHEN ActiveBOM =1 AND ActiveEOM =1 THEN "1.Maintain"
-    WHEN  ActiveBOM =1 AND ActiveEOM =0 THEN "2.Loss"
-    WHEN ActiveBOM=0 AND ActiveEOM=1 THEN "3.Gross Add/ rejoiner"
+    CASE WHEN Mobile_ActiveBOM =1 AND Mobile_ActiveEOM =1 THEN "1.Maintain"
+    WHEN  Mobile_ActiveBOM =1 AND Mobile_ActiveEOM =0 THEN "2.Loss"
+    WHEN Mobile_ActiveBOM=0 AND Mobile_ActiveEOM=1 THEN "3.Gross Add/ rejoiner"
     ELSE "3.NULL" END AS MobileMovementFlag,
     FROM MobileCustomerBase
 )
