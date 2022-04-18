@@ -1,3 +1,7 @@
+CREATE OR REPLACE TABLE
+
+`gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Fixed_DashboardInput` AS
+
 ###################################### Fixed Useful Fields #################################################################
 
 WITH 
