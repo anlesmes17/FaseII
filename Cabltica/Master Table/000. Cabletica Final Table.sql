@@ -34,7 +34,7 @@ WHEN (Mobile_Account IS NOT NULL AND Mobile_ActiveEOM=1 AND (ActiveEOM = 0 OR Ac
  END AS E_FMC_Status, f.*,m.*, 
  ifnull(B_BILL_AMT,0) + ifnull(ROUND(SAFE_CAST(replace(RENTA,".","") AS NUMERIC),0),0) AS TOTAL_B_MRC ,  ifnull(E_BILL_AMT,0) + ifnull(ROUND(SAFE_CAST(replace(RENTA,".","") AS NUMERIC),0),0) AS TOTAL_E_MRC 
 FROM Fixed_Base f FULL OUTER JOIN Mobile_Base m 
-ON safe_cast(Fixed_Account as string)=B_Contrato AND Fixed_Month=Mobile_Month
+ON safe_cast(Fixed_Account as string)=Mobile_Contrato AND Fixed_Month=Mobile_Month
 )
 
 ,CustomerBase_FMC_Tech_Flags AS(
