@@ -97,4 +97,4 @@ FROM CustomerBase_FMC_Tech_Flags c
 
 SELECT *
 FROM CustomerBase_FMCSegments_ChurnFlag
-WHERE MONTH = "2022-02-01"
+WHERE MONTH = "2022-02-01" 
