@@ -41,29 +41,29 @@ Fixed_Base AS(
     SELECT DISTINCT a.*,b.act_acct_cd AS E_CONTR, E_EMAIL
     FROM NEARFMC_MOBILE_FEB a LEFT JOIN EMAIL_MAR b 
     ON ID_ABONADO=Mobile_Account AND DATE_SUB(FECHA_PARQUE, INTERVAL 1 Month)=Mobile_Month
+    
 )
 ,CONTRATO_ADJ AS (
     SELECT a.*,
     CASE WHEN B_CONTRATO IS NOT NULL THEN safe_cast(B_CONTRATO as string)
     WHEN B_CONTR IS NOT NULL THEN safe_cast(B_CONTR as string)
-    ELSE Mobile_Account
+    ELSE NULL
     END AS B_Mobile_Contrato_Adj,
     CASE WHEN E_CONTRATO IS NOT NULL THEN safe_cast(E_CONTRATO as string)
     WHEN E_CONTR IS NOT NULL THEN safe_cast(E_CONTR as string)
-    ELSE Mobile_Account
+    ELSE NULL
     END AS E_Mobile_Contrato_Adj
     FROM NEARFMC_MOBILE_MAR a
+    WHERE Mobile_Account="28232990"
 )
 
 ,Mobile_Final_Base AS (
     SELECT a.*,
-    CASE WHEN (Mobile_activeBOM IS NOT NULL AND Mobile_activeEOM IS NOT NULL) OR (Mobile_activeBOM IS NOT NULL AND Mobile_activeEOM IS NULL) THEN B_Mobile_Contrato_Adj
-      WHEN (Mobile_activeBOM IS NULL AND Mobile_activeEOM IS NOT NULL) THEN E_Mobile_Contrato_Adj
+    CASE WHEN B_Mobile_Contrato_Adj IS NULL THEN E_Mobile_Contrato_Adj
+      WHEN E_Mobile_Contrato_Adj IS NULL AND B_Mobile_Contrato_Adj IS NULL THEN B_Mobile_Contrato_Adj
       END AS Mobile_Contrato_Adj
      FROM CONTRATO_ADJ a
 )
-
-
 
 ############################################## Join Fixed Mobile ################################################
 
@@ -81,22 +81,23 @@ ELSE 0 END AS Final_BOM_ActiveFlag,
 CASE WHEN (ActiveEOM =1 AND Mobile_ActiveEOM=1) or (ActiveEOM=1 AND (Mobile_ActiveEOM=0 or Mobile_ActiveEOM IS NULL)) or ((ActiveEOM=0 OR ActiveEOM IS NULL) AND Mobile_ActiveEOM=1) THEN 1
 ELSE 0 END AS Final_EOM_ActiveFlag,
 CASE 
-WHEN (Fixed_Account is not null and Mobile_Account is not null and ActiveBOM = 1 and Mobile_ActiveBOM = 1) THEN "Soft FMC"
-WHEN (B_EMAIL IS NOT NULL AND B_CONTRATO IS NULL) THEN "Near FMC"
+WHEN (Fixed_Account is not null and Mobile_Account is not null and ActiveBOM = 1 and Mobile_ActiveBOM = 1 AND B_CONTRATO IS NOT NULL) THEN "Soft FMC"
+WHEN (B_EMAIL IS NOT NULL AND B_CONTRATO IS NULL) OR (ActiveBOM = 1 and Mobile_ActiveBOM = 1) THEN "Near FMC"
 WHEN (B_EMAIL IS NOT NULL AND B_CONTRATO IS NOT NULL) THEN "Undefined FMC"
 WHEN (Fixed_Account IS NOT NULL AND ActiveBOM=1 AND (Mobile_ActiveBOM = 0 OR Mobile_ActiveBOM IS NULL)) THEN "Fixed Only"
 WHEN ((Mobile_Account IS NOT NULL AND Mobile_ActiveBOM=1 AND (ActiveBOM = 0 OR ActiveBOM IS NULL))) THEN "Mobile Only"
   END AS B_FMC_Status,
 CASE 
-WHEN (Fixed_Account is not null and Mobile_Account is not null and ActiveEOM = 1 and Mobile_ActiveEOM = 1) THEN "Soft FMC"
-WHEN (E_EMAIL IS NOT NULL AND E_CONTRATO IS NULL) THEN "Near FMC"
-WHEN (B_EMAIL IS NOT NULL AND B_CONTRATO IS NOT NULL) THEN "Undefined FMC"
+WHEN (Fixed_Account is not null and Mobile_Account is not null and ActiveEOM = 1 and Mobile_ActiveEOM = 1 AND E_CONTRATO IS NOT NULL) THEN "Soft FMC"
+WHEN (E_EMAIL IS NOT NULL AND E_CONTRATO IS NULL) OR (ActiveEOM = 1 and Mobile_ActiveEOM = 1) THEN "Near FMC"
+WHEN (E_EMAIL IS NOT NULL AND E_CONTRATO IS NOT NULL) THEN "Undefined FMC"
 WHEN (Fixed_Account IS NOT NULL AND ActiveEOM=1 AND (Mobile_ActiveEOM = 0 OR Mobile_ActiveEOM IS NULL)) THEN "Fixed Only"
 WHEN (Mobile_Account IS NOT NULL AND Mobile_ActiveEOM=1 AND (ActiveEOM = 0 OR ActiveEOM IS NULL)) THEN "Mobile Only"
- END AS E_FMC_Status, f.*,m.*, 
+ END AS E_FMC_Status, f.*,m.* EXCEPT(B_EMAIL, E_EMAIL, B_CONTR, E_CONTR, B_Mobile_Contrato_Adj, E_Mobile_Contrato_Adj),
  ifnull(B_BILL_AMT,0) + ifnull(ROUND(SAFE_CAST(replace(RENTA,".","") AS NUMERIC),0),0) AS TOTAL_B_MRC ,  ifnull(E_BILL_AMT,0) + ifnull(ROUND(SAFE_CAST(replace(RENTA,".","") AS NUMERIC),0),0) AS TOTAL_E_MRC 
 FROM Fixed_Base f FULL OUTER JOIN Mobile_Final_Base m 
 ON safe_cast(Fixed_Account as string)=Mobile_Contrato_Adj AND Fixed_Month=Mobile_Month
+--WHERE Fixed_Account=1118290 OR Mobile_Account="28232990"
 )
 
 ,CustomerBase_FMC_Tech_Flags AS(
@@ -166,8 +167,8 @@ FROM CustomerBase_FMC_Tech_Flags c
 
 
 
-SELECT DISTINCT B_FMC_Segment, COUNT( DISTINCT Final_Account)
+SELECT *
 FROM CustomerBase_FMCSegments_ChurnFlag
-WHERE MONTH = "2022-02-01" AND Final_BOM_ActiveFlag=1
-GROUP BY B_FMC_Segment
+WHERE MONTH = "2022-02-01"  AND Final_Account="1118290" OR Final_Account="28232990"
+
 
