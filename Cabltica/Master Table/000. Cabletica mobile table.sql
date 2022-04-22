@@ -62,7 +62,7 @@ GROUP BY MOBILE_Month*/
 ,TenureCustomerBase AS (
     SELECT DISTINCT m.*, MIN(MESES_ANTIGUEDAD) AS MESES_ANTIGUEDAD, RENTA
     FROM MobileCustomerBase m LEFT JOIN BaseRentaTenure 
-    ON NUM_ABONADO=Mobile_Account
+    ON  replace(NUM_ABONADO,".","")=Mobile_Account
     GROUP BY 1,2,3,4,5,6,8
 )
 
@@ -82,7 +82,7 @@ FROM TenureCustomerBase
     WHEN  Mobile_ActiveBOM =1 AND Mobile_ActiveEOM =0 THEN "2.Loss"
     WHEN Mobile_ActiveBOM=0 AND Mobile_ActiveEOM=1 THEN "3.Gross Add/ rejoiner"
     ELSE "3.NULL" END AS MobileMovementFlag,
-    FROM MobileCustomerBase
+    FROM FlagTenureCustomerBase
 )
 
 
@@ -95,16 +95,17 @@ FROM MobileUsefulFields_BOM b LEFT JOIN MobileUsefulFields_EOM e ON e.ID_ABONADO
 ,AllChurners AS (
     SELECT Account_BOM, Account_EOM, CASE
     WHEN Account_EOM IS NULL THEN "Churner"
-    ELSE "Non Churners" END AS Churners
+    ELSE "Non Churners" END AS MobileChurnFlag
     FROM MobileChurners
     WHERE Account_EOM IS NULL
 )
 
 
 ,ChurnerClassification AS (
-SELECT DISTINCT Account_BOM, Churners, TIPO_BAJA
+SELECT DISTINCT Account_BOM,MobileChurnFlag, TIPO_BAJA
 FROM AllChurners m Left Join BaseMovimientos b ON Account_BOM= b.ID_ABONADO
 )
 --,CustomerBaseWithChurn AS (
-    SELECT DISTINCT m.*, c.Churners, c.TIPO_BAJA
-    FROM MobileCustomerBase m LEFT JOIN ChurnerClassification c ON m.Mobile_Account=c.Account_BOM
+    SELECT DISTINCT m.*, c.MobileChurnFlag, c.TIPO_BAJA
+    FROM MainMovements m LEFT JOIN ChurnerClassification c ON m.Mobile_Account=c.Account_BOM
+    --WHERE Mobile_Month="2022-02-01"
