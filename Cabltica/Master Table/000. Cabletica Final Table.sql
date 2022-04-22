@@ -2,10 +2,13 @@ WITH
 
 Fixed_Base AS(
   SELECT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Fixed_DashboardInput`
+  --WHERE Fixed_Account=1004819 AND Fixed_Month ="2022-02-01"
 )
 
 ,Mobile_Base AS(
   SELECT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Mobile_DashboardInput`
+  --WHERE E_CONTRATO="1004819"
+  --WHERE Mobile_Month ="2022-02-01"
 )
 
 ########################################### Near FMC ######################################################
@@ -129,15 +132,22 @@ ON safe_cast(Fixed_Account as string)=Mobile_Contrato_Adj AND Fixed_Month=Mobile
  WHEN (E_FMC_Status = "Fixed Only" )  AND (Mobile_ActiveEOM = 0 OR MOBILE_ACTIVEEOM IS NULL OR(Mobile_ActiveEOM = 1 AND MobileChurnFlag IS NOT NULL)) AND E_MIX = "2P" THEN "Fixed 2P"
  WHEN (E_FMC_Status = "Fixed Only" )  AND (Mobile_ActiveEOM = 0 OR MOBILE_ACTIVEEOM IS NULL OR(Mobile_ActiveEOM = 1 AND MobileChurnFlag IS NOT NULL)) AND E_MIX = "3P" THEN "Fixed 3P"
  WHEN (E_FMC_Status = "Soft FMC" OR E_FMC_Status = "Near FMC" OR E_FMC_Status = "Undefined FMC"  ) AND (ActiveEOM = 0 OR ActiveEOM is null OR (ActiveEOM = 1 AND FixedChurnType IS NOT NULL)) then "Mobile Only"
- WHEN E_FMC_Status = "Mobile Only" THEN E_FMC_Status
+ WHEN E_FMC_Status = "Mobile Only" OR((ActiveEOM is null or activeeom=0) and(Mobile_ActiveEOM=1)) THEN "Mobile Only"
  WHEN E_FMC_Status="Soft FMC" AND (FixedChurnType IS NULL AND MobileChurnFlag IS NULL AND Fixed_Account IS NOT NULL  AND ActiveEOM=1 AND Mobile_ActiveEOM=1 ) THEN E_FMC_Status
  WHEN E_FMC_Status="Near FMC" AND (FixedChurnType IS NULL AND MobileChurnFlag IS NULL  AND Fixed_Account IS NOT NULL  AND ActiveEOM=1 AND Mobile_ActiveEOM=1) THEN E_FMC_Status
  WHEN E_FMC_Status="Undefined FMC" AND (FixedChurnType IS NULL AND MobileChurnFlag IS NULL  AND Fixed_Account IS NOT NULL AND  ActiveEOM=1 AND Mobile_ActiveEOM=1) THEN E_FMC_Status
  END AS E_FMCType,
+ FROM ContractDistinction t
+ 
+)
+
+,CustomerBase_FMCSegments_ChurnFlag AS(
+SELECT c.*,
  CASE WHEN (B_FMC_Status = "Fixed Only") OR ((B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" OR B_FMC_Status="Undefined FMC") AND ACTIVEBOM = 1 AND Mobile_ActiveBOM = 1) THEN B_TechAdj
  WHEN B_FMC_Status = "Mobile Only" OR ((B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" OR B_FMC_Status="Undefined FMC") AND ACTIVEBOM = 0) THEN "Wireless"
  END AS B_FinalTechFlag,
- CASE WHEN (E_FMC_Status = "Fixed Only") OR ((E_FMC_Status = "Soft FMC" OR E_FMC_Status="Near FMC" OR E_FMC_Status="Undefined FMC") AND ACTIVEEOM = 1 AND Mobile_ActiveEOM = 1) THEN E_TechAdj
+ CASE
+ WHEN (E_FMC_Status = "Fixed Only" AND FixedChurnType is null) OR ((E_FMC_Status = "Soft FMC" OR E_FMC_Status="Near FMC" OR E_FMC_Status="Undefined FMC" ) AND ACTIVEEOM = 1 AND Mobile_ActiveEOM = 1 AND FixedChurnType is null) THEN E_TechAdj
  WHEN E_FMC_Status = "Mobile Only" OR ((E_FMC_Status = "Soft FMC" OR E_FMC_Status="Near FMC" OR E_FMC_Status="Undefined FMC") AND ACTIVEEOM = 0) THEN "Wireless"
  END AS E_FinalTechFlag,
  CASE WHEN (B_TenureType =  "Late Tenure" and TenureCustomer =  "Late Tenure") OR (B_TenureType =  "Late Tenure" and TenureCustomer is null) or (B_TenureType IS NULL and TenureCustomer =  "Late Tenure") THEN "Late Tenure"
@@ -145,14 +155,7 @@ ON safe_cast(Fixed_Account as string)=Mobile_Contrato_Adj AND Fixed_Month=Mobile
  END AS B_TenureFinalFlag,
  CASE WHEN (E_TenureType =  "Late Tenure" and TenureCustomer =  "Late Tenure") OR (E_TenureType =  "Late Tenure" and TenureCustomer is null) or (E_TenureType IS NULL and TenureCustomer =  "Late Tenure") THEN "Late Tenure"
  WHEN (E_TenureType =  "Early Tenure" OR TenureCustomer =  "Early Tenure") THEN "Early Tenure"
- END AS E_TenureFinalFlag
- FROM ContractDistinction t
- 
-)
-
-
-,CustomerBase_FMCSegments_ChurnFlag AS(
-SELECT c.*,
+ END AS E_TenureFinalFlag,
 CASE
 WHEN (B_FMCType = "Soft FMC" OR B_FMCType = "Near FMC" OR B_FMCType = "Undefined FMC") AND B_MIX = "1P"  THEN "P2"
 WHEN (B_FMCType  = "Soft FMC" OR B_FMCType = "Near FMC" OR B_FMCType = "Undefined FMC") AND B_MIX = "2P" THEN "P3"
@@ -175,25 +178,22 @@ WHEN (FixedChurnType is null and MobileChurnFlag is null and (ActiveEOM = 0 OR A
 ELSE "Non Churner" END AS FinalChurnFlag
 FROM CustomerBase_FMC_Tech_Flags c
 )
-/*
-SELECT * FROM CustomerBase_FMCSegments_ChurnFlag
-WHERE MONTH = "2022-02-01" AND Final_EOM_ActiveFlag=1 AND E_FMC_segment IS NULL
-*/
 
-SELECT DISTINCT E_FMC_segment,
---B_FMC_Segment, 
-COUNT(Final_Account_adj) AS REC
+
+
+SELECT DISTINCT * 
 FROM CustomerBase_FMCSegments_ChurnFlag
-WHERE MONTH = "2022-02-01" --AND Final_eOM_ActiveFlag=1 
+WHERE MONTH = "2022-02-01" 
+
+/*
+SELECT DISTINCT E_FMC_segment, COUNT(DISTINCT Final_Account_adj)
+FROM CustomerBase_FMCSegments_ChurnFlag
+WHERE MONTH = "2022-02-01"
 GROUP BY 1
-order by rec desc
---GROUP BY --E_FMCType
---E_FMC_Status
-/*SELECT DISTINCT Final_Account_adj, count(Distinct E_FMC_Segment) as count
+*/
+/*
+SELECT DISTINCT Final_Account_adj, COUNT(*) AS REC
 FROM CustomerBase_FMCSegments_ChurnFlag
-WHERE MONTH = "2022-02-01" AND Final_EOM_ActiveFlag=1 
-GROUP BY --E_FMCType, 
-Final_Account_adj
-order by count desc
+WHERE MONTH ="2022-02-01"
 GROUP BY 1
 ORDER BY REC DESC*/
