@@ -2,13 +2,12 @@ WITH
 
 Fixed_Base AS(
   SELECT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Fixed_DashboardInput`
-  --WHERE Fixed_Account=1004819 AND Fixed_Month ="2022-02-01"
+
 )
 
 ,Mobile_Base AS(
   SELECT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Mobile_DashboardInput`
-  --WHERE E_CONTRATO="1004819"
-  --WHERE Mobile_Month ="2022-02-01"
+
 )
 
 ########################################### Near FMC ######################################################
@@ -65,6 +64,7 @@ Fixed_Base AS(
       END AS Mobile_Contrato_Adj
      FROM CONTRATO_ADJ a
 )
+
 
 ############################################## Join Fixed Mobile ################################################
 
@@ -179,12 +179,17 @@ ELSE "Non Churner" END AS FinalChurnFlag
 FROM CustomerBase_FMC_Tech_Flags c
 )
 
-
-
+SELECT DISTINCT Mobile_Contrato_Adj, Count(*) as rec
+FROM Mobile_Final_Base 
+WHERE Mobile_Month="2022-02-01"
+GROUP BY 1
+ORDER BY REC DESC
+--)
+/*
 SELECT DISTINCT * 
 FROM CustomerBase_FMCSegments_ChurnFlag
 WHERE MONTH = "2022-02-01" 
-
+*/
 /*
 SELECT DISTINCT E_FMC_segment, COUNT(DISTINCT Final_Account_adj)
 FROM CustomerBase_FMCSegments_ChurnFlag
