@@ -117,14 +117,15 @@ ON safe_cast(Fixed_Account as string)=Mobile_Contrato_Adj AND Fixed_Month=Mobile
 ,CustomerBase_FMC_Tech_Flags AS(
  
  SELECT t.*,
-  ifnull(B_BILL_AMT/ContractsFix,0) + ifnull(ROUND(SAFE_CAST(replace(RENTA,".","") AS NUMERIC),0),0) AS TOTAL_B_MRC ,  ifnull(E_BILL_AMT/ContractsFix,0) + ifnull(ROUND(SAFE_CAST(replace(RENTA,".","") AS NUMERIC),0),0) AS TOTAL_E_MRC ,
+  round(ifnull(B_BILL_AMT/ContractsFix,0) + ifnull(ROUND(SAFE_CAST(replace(RENTA,".","") AS NUMERIC),0),0),0) AS TOTAL_B_MRC ,  round(ifnull(E_BILL_AMT/ContractsFix,0) + ifnull(ROUND(SAFE_CAST(replace(RENTA,".","") AS NUMERIC),0),0),0) AS TOTAL_E_MRC,
  CASE  
- WHEN (B_FMC_Status = "Fixed Only" OR B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" OR B_FMC_Status="Undefined FMC" )  AND (Mobile_ActiveBOM = 0 OR MOBILE_ACTIVEBOM IS NULL) AND B_MIX = "1P" THEN "Fixed 1P"
- WHEN (B_FMC_Status = "Fixed Only" OR B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" OR B_FMC_Status="Undefined FMC")  AND (Mobile_ActiveBOM = 0 OR MOBILE_ACTIVEBOM IS NULL) AND B_MIX = "2P" THEN "Fixed 2P"
- WHEN (B_FMC_Status = "Fixed Only" OR B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" OR B_FMC_Status="Undefined FMC")  AND (Mobile_ActiveBOM = 0 OR MOBILE_ACTIVEBOM IS NULL) AND B_MIX = "3P" THEN "Fixed 3P"
+ WHEN (B_FMC_Status = "Fixed Only" OR B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" )  AND (Mobile_ActiveBOM = 0 OR MOBILE_ACTIVEBOM IS NULL) AND B_MIX = "1P" THEN "Fixed 1P"
+ WHEN (B_FMC_Status = "Fixed Only" OR B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" )  AND (Mobile_ActiveBOM = 0 OR MOBILE_ACTIVEBOM IS NULL) AND B_MIX = "2P" THEN "Fixed 2P"
+ WHEN (B_FMC_Status = "Fixed Only" OR B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" )  AND (Mobile_ActiveBOM = 0 OR MOBILE_ACTIVEBOM IS NULL) AND B_MIX = "3P" THEN "Fixed 3P"
+ WHEN B_FMC_Status = "Undefined FMC" AND  MOBILE_ACTIVEBOM=1 THEN "Mobile Only"
  WHEN (B_FMC_Status = "Soft FMC" ) AND (ActiveBOM = 0 OR ActiveBOM is null) then "Mobile Only"
  WHEN B_FMC_Status = "Mobile Only" THEN B_FMC_Status
- WHEN (B_FMC_Status="Near FMC" OR B_FMC_Status="Undefined FMC" OR B_FMC_Status="Soft FMC") THEN B_FMC_Status
+ WHEN (B_FMC_Status="Near FMC" OR  B_FMC_Status="Soft FMC") THEN B_FMC_Status
  END AS B_FMCType,
  CASE 
  WHEN Final_EOM_ActiveFlag = 0 AND (ActiveEOM = 0 AND FixedChurnType IS NULL) OR (Mobile_ActiveEOM = 0 AND MobileChurnFlag is null) THEN "Customer Gap"
@@ -144,13 +145,13 @@ ON safe_cast(Fixed_Account as string)=Mobile_Contrato_Adj AND Fixed_Month=Mobile
 )
 
 ,CustomerBase_FMCSegments_ChurnFlag AS(
-SELECT c.*,
+SELECT c.*, 
  CASE WHEN (B_FMC_Status = "Fixed Only") OR ((B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" OR B_FMC_Status="Undefined FMC") AND ACTIVEBOM = 1 AND Mobile_ActiveBOM = 1) THEN B_TechAdj
- WHEN B_FMC_Status = "Mobile Only" OR ((B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" OR B_FMC_Status="Undefined FMC") AND ACTIVEBOM = 0) THEN "Wireless"
+ WHEN B_FMC_Status = "Mobile Only" OR ((B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" OR B_FMC_Status="Undefined FMC") AND (ACTIVEBOM = 0 or ACTIVEBOM IS NULL)) THEN "Wireless"
  END AS B_FinalTechFlag,
  CASE
  WHEN (E_FMC_Status = "Fixed Only" AND FixedChurnType is null) OR ((E_FMC_Status = "Soft FMC" OR E_FMC_Status="Near FMC" OR E_FMC_Status="Undefined FMC" ) AND ACTIVEEOM = 1 AND Mobile_ActiveEOM = 1 AND FixedChurnType is null) THEN E_TechAdj
- WHEN E_FMC_Status = "Mobile Only" OR ((E_FMC_Status = "Soft FMC" OR E_FMC_Status="Near FMC" OR E_FMC_Status="Undefined FMC") AND ACTIVEEOM = 0) THEN "Wireless"
+ WHEN E_FMC_Status = "Mobile Only" OR ((E_FMC_Status = "Soft FMC" OR E_FMC_Status="Near FMC" OR E_FMC_Status="Undefined FMC") AND (ACTIVEEOM = 0 OR ActiveEOM IS NULL)) THEN "Wireless"
  END AS E_FinalTechFlag,
  CASE WHEN (B_TenureType =  "Late Tenure" and TenureCustomer =  "Late Tenure") OR (B_TenureType =  "Late Tenure" and TenureCustomer is null) or (B_TenureType IS NULL and TenureCustomer =  "Late Tenure") THEN "Late Tenure"
  WHEN (B_TenureType =  "Early Tenure" OR TenureCustomer =  "Early Tenure") THEN "Early Tenure"
@@ -177,30 +178,16 @@ WHEN (FixedChurnType is not null and MobileChurnFlag is not null) then "Full Chu
 WHEN (FixedChurnType is not null and MobileChurnFlag is null) then "Fixed Churner"
 WHEN (FixedChurnType is null and MobileChurnFlag is NOT null) then "Mobile Churner"
 WHEN (FixedChurnType is null and MobileChurnFlag is null and (ActiveEOM = 0 OR ActiveEOM is null) AND (Mobile_ActiveEOM = 0 or Mobile_ActiveEOM IS NULL)) THEN "Customer Gap"
-ELSE "Non Churner" END AS FinalChurnFlag
+ELSE "Non Churner" END AS FinalChurnFlag,
+ ifnull(TOTAL_E_MRC,0) - ifnull(TOTAL_B_MRC,0) AS MRC_Change
 FROM CustomerBase_FMC_Tech_Flags c
 )
-/*
-SELECT DISTINCT Mobile_Contrato_Adj, Count(*) as rec
-FROM Mobile_Final_Base 
-WHERE Mobile_Month="2022-02-01"
-GROUP BY 1
-ORDER BY REC DESC
---)*/
 
-SELECT DISTINCT * 
-FROM CustomerBase_FMCSegments_ChurnFlag
-WHERE MONTH = "2022-02-01" 
 
-/*
-SELECT DISTINCT E_FMC_segment, COUNT(DISTINCT Final_Account_adj)
+SELECT distinct *
 FROM CustomerBase_FMCSegments_ChurnFlag
-WHERE MONTH = "2022-02-01"
-GROUP BY 1
-*/
-/*
-SELECT DISTINCT Final_Account_adj, COUNT(*) AS REC
-FROM CustomerBase_FMCSegments_ChurnFlag
-WHERE MONTH ="2022-02-01"
-GROUP BY 1
-ORDER BY REC DESC*/
+WHERE Month = '2022-02-01' 
+
+
+
+
