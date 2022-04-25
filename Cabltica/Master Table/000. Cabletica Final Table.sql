@@ -1,12 +1,12 @@
 WITH 
 
 Fixed_Base AS(
-  SELECT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Fixed_DashboardInput`
+  SELECT DISTINCT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Fixed_DashboardInput`
 
 )
 
 ,Mobile_Base AS(
-  SELECT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Mobile_DashboardInput`
+  SELECT DISTINCT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Mobile_DashboardInput`
 
 )
 
@@ -57,12 +57,23 @@ Fixed_Base AS(
     FROM NEARFMC_MOBILE_MAR a
 )
 
-,Mobile_Final_Base AS (
+,MobilePreliminaryBase AS (
     SELECT a.*,
     CASE WHEN B_Mobile_Contrato_Adj IS NOT NULL THEN B_Mobile_Contrato_Adj
       WHEN E_Mobile_Contrato_Adj IS NOT NULL THEN E_Mobile_Contrato_Adj
       END AS Mobile_Contrato_Adj
      FROM CONTRATO_ADJ a
+)
+,AccountFix AS (
+    SELECT DISTINCT Mobile_Contrato_Adj, Mobile_Month, COUNT(*) as FixedCount
+    FROM MobilePreliminaryBase
+    GROUP BY Mobile_Contrato_Adj, Mobile_Month
+)
+
+,JoinAccountFix AS (
+    SELECT m.*, b.FixedCount
+    FROM MobilePreliminaryBase m LEFT JOIN AccountFix b ON m.Mobile_Contrato_Adj=b.Mobile_Contrato_Adj AND m.Mobile_Month=b.Mobile_month
+
 )
 
 
@@ -89,33 +100,24 @@ WHEN (Fixed_Account IS NOT NULL AND ActiveBOM=1 AND (Mobile_ActiveBOM = 0 OR Mob
 WHEN ((Mobile_Account IS NOT NULL AND Mobile_ActiveBOM=1 AND (ActiveBOM = 0 OR ActiveBOM IS NULL)))  THEN "Mobile Only"
   END AS B_FMC_Status,
 CASE 
+WHEN FixedCount IS NULL THEN 1
+WHEN FixedCount IS NOT NULL THEN FixedCount
+End as ContractsFix,
+CASE 
 WHEN (Fixed_Account is not null and Mobile_Account is not null and ActiveEOM = 1 and Mobile_ActiveEOM = 1 AND E_CONTRATO IS NOT NULL ) THEN "Soft FMC"
 WHEN (E_EMAIL IS NOT NULL AND E_CONTRATO IS NULL) OR (ActiveEOM = 1 and Mobile_ActiveEOM = 1 ) THEN "Near FMC"
 WHEN (E_EMAIL IS NOT NULL AND E_CONTRATO IS NOT NULL)   THEN "Undefined FMC"
 WHEN (Fixed_Account IS NOT NULL AND ActiveEOM=1 AND (Mobile_ActiveEOM = 0 OR Mobile_ActiveEOM IS NULL))  THEN "Fixed Only"
 WHEN (Mobile_Account IS NOT NULL AND Mobile_ActiveEOM=1 AND (ActiveEOM = 0 OR ActiveEOM IS NULL )) AND MobileChurnFlag IS NULL THEN "Mobile Only"
  END AS E_FMC_Status, f.*,m.* EXCEPT(B_EMAIL, E_EMAIL, B_CONTR, E_CONTR, B_Mobile_Contrato_Adj, E_Mobile_Contrato_Adj, Mobile_Account, MESES_ANTIGUEDAD),
- ifnull(B_BILL_AMT,0) + ifnull(ROUND(SAFE_CAST(replace(RENTA,".","") AS NUMERIC),0),0) AS TOTAL_B_MRC ,  ifnull(E_BILL_AMT,0) + ifnull(ROUND(SAFE_CAST(replace(RENTA,".","") AS NUMERIC),0),0) AS TOTAL_E_MRC 
-FROM Fixed_Base f FULL OUTER JOIN Mobile_Final_Base m 
+FROM Fixed_Base f FULL OUTER JOIN JoinAccountFix  m 
 ON safe_cast(Fixed_Account as string)=Mobile_Contrato_Adj AND Fixed_Month=Mobile_Month
 )
-
-,ContractDistinction AS (
-  SELECT f.*,
-  CASE 
-  WHEN (ActiveBOM=1 AND (Mobile_ActiveEOM=0 or Mobile_ActiveEOM is null)) THEN concat(Final_Account,"F1")
-  WHEN (ActiveEOM=1 AND (Mobile_ActiveEOM=0 or Mobile_ActiveEOM is null)) THEN concat(Final_Account,"F2")
-  WHEN ((ActiveBOM=0 OR ActiveBOM IS NULL ) AND Mobile_ActiveEOM=1) THEN concat(Final_Account,"M1")
-  WHEN ((ActiveEOM=0 OR ActiveBOM IS NULL) AND Mobile_ActiveEOM=1) THEN concat(Final_Account,"M2")
-  ELSE Final_Account END AS Final_Account_adj
-  FROM FullCustomerBase f
-
-)
-
 
 ,CustomerBase_FMC_Tech_Flags AS(
  
  SELECT t.*,
+  ifnull(B_BILL_AMT/ContractsFix,0) + ifnull(ROUND(SAFE_CAST(replace(RENTA,".","") AS NUMERIC),0),0) AS TOTAL_B_MRC ,  ifnull(E_BILL_AMT/ContractsFix,0) + ifnull(ROUND(SAFE_CAST(replace(RENTA,".","") AS NUMERIC),0),0) AS TOTAL_E_MRC ,
  CASE  
  WHEN (B_FMC_Status = "Fixed Only" OR B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" OR B_FMC_Status="Undefined FMC" )  AND (Mobile_ActiveBOM = 0 OR MOBILE_ACTIVEBOM IS NULL) AND B_MIX = "1P" THEN "Fixed 1P"
  WHEN (B_FMC_Status = "Fixed Only" OR B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" OR B_FMC_Status="Undefined FMC")  AND (Mobile_ActiveBOM = 0 OR MOBILE_ACTIVEBOM IS NULL) AND B_MIX = "2P" THEN "Fixed 2P"
@@ -137,7 +139,7 @@ ON safe_cast(Fixed_Account as string)=Mobile_Contrato_Adj AND Fixed_Month=Mobile
  WHEN E_FMC_Status="Near FMC" AND (FixedChurnType IS NULL AND MobileChurnFlag IS NULL  AND Fixed_Account IS NOT NULL  AND ActiveEOM=1 AND Mobile_ActiveEOM=1) THEN E_FMC_Status
  WHEN E_FMC_Status="Undefined FMC" AND (FixedChurnType IS NULL AND MobileChurnFlag IS NULL  AND Fixed_Account IS NOT NULL AND  ActiveEOM=1 AND Mobile_ActiveEOM=1) THEN E_FMC_Status
  END AS E_FMCType,
- FROM ContractDistinction t
+ FROM FullCustomerBase  t
  
 )
 
@@ -178,18 +180,18 @@ WHEN (FixedChurnType is null and MobileChurnFlag is null and (ActiveEOM = 0 OR A
 ELSE "Non Churner" END AS FinalChurnFlag
 FROM CustomerBase_FMC_Tech_Flags c
 )
-
+/*
 SELECT DISTINCT Mobile_Contrato_Adj, Count(*) as rec
 FROM Mobile_Final_Base 
 WHERE Mobile_Month="2022-02-01"
 GROUP BY 1
 ORDER BY REC DESC
---)
-/*
+--)*/
+
 SELECT DISTINCT * 
 FROM CustomerBase_FMCSegments_ChurnFlag
 WHERE MONTH = "2022-02-01" 
-*/
+
 /*
 SELECT DISTINCT E_FMC_segment, COUNT(DISTINCT Final_Account_adj)
 FROM CustomerBase_FMCSegments_ChurnFlag
