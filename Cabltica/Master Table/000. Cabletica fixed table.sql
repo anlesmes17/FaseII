@@ -141,6 +141,7 @@ ORDER BY FECHA_EXTRACCION DESC
    B_Date, B_VO_id, B_VO_nm, B_TV_id, B_TV_nm, B_BB_id, B_BB_nm, B_RGU_VO, B_RGU_TV, B_RGU_BB, B_NumRGUs, B_Overdue, B_Tenure, B_MaxInst, B_Bundle_Type, B_BundleName,B_MIX, B_TechAdj,B_TenureType, B_MORA, B_VO_MRC, B_BB_MRC, B_TV_MRC, B_AVG_MRC, B_BILL_AMT,
    E_Date, E_VO_id, E_VO_nm, E_TV_id, E_TV_nm, E_BB_id, E_BB_nm, E_RGU_VO, E_RGU_TV, E_RGU_BB, E_NumRGUs, E_Overdue, E_Tenure, E_MaxInst, E_Bundle_Type, E_BundleName,E_MIX, E_TechAdj,E_TenureType, E_MORA, E_VO_MRC, E_BB_MRC, E_TV_MRC, E_AVG_MRC, E_BILL_AMT
   FROM FinalCustomerBase_BOM b FULL OUTER JOIN FinalCustomerBase_EOM e ON b.AccountBOM = e.AccountEOM AND b.Month = e.Month
+
 )
 
 ,ServiceOrders AS (
@@ -156,7 +157,9 @@ ORDER BY FECHA_EXTRACCION DESC
  CASE WHEN E_NumRGUs > B_NumRGUs THEN "Upsell"
  WHEN E_NumRGUs < B_NumRGUs THEN "Downsell"
  WHEN E_NumRGUs = B_NumRGUs THEN "Same RGUs"
- WHEN ActiveBOM = 0 AND ACTIVEEOM = 1 THEN "Gain_GrossAds"
+WHEN (B_NumRGUs IS NULL AND E_NumRGUs > 0 AND DATE_TRUNC (E_MaxInst, MONTH) = '2022-02-01') THEN "New Customer"
+WHEN (B_NumRGUs IS NULL AND E_NumRGUs > 0 AND DATE_TRUNC (E_MaxInst, MONTH) <> '2022-02-01') THEN "Come Back to Life"
+ /*WHEN ActiveBOM = 0 AND ACTIVEEOM = 1 THEN "Gain_GrossAds"*/
  WHEN ActiveBOM = 1 AND ActiveEOM = 0 THEN "Loss"
  END AS MainMovement,
  CASE WHEN ActiveBOM = 0 AND ActiveEOM = 1 AND DATE_TRUNC(E_MaxInst,Month) = "2022-02-01" THEN "Feb Gross-Ads"
@@ -216,13 +219,41 @@ FROM ServiceOrders
  FROM SPINMOVEMENTBASE c 
 )
 
---CRUCECHURNERSCRM AS(
+,CRUCECHURNERSCRM AS(
  SELECT DISTINCT C.* except(B_TV_id, E_TV_id, B_TV_nm, E_TV_nm, B_BB_id, E_BB_id), FixedChurnType, 
  FROM CustomerBaseWithChurners  c LEFT JOIN CHURNTYPEFLAGSO s ON safe_cast(s.Contratoso as string)= act_acct_cd AND date_trunc(primerchurnSO, month) = Fixed_Month
+)
+########################################## Churners #####################################################
 
+,InactiveUsersMonth AS (
+SELECT DISTINCT Fixed_Month AS ExitMonth, Fixed_Account,DATE_ADD(Fixed_Month, INTERVAL 4 MONTH) AS RejoinerMonth
+FROM FixedCustomerBase 
+WHERE ActiveBOM=1 AND ActiveEOM=0
+)
 
+,RejoinersPopulation AS(
+SELECT f.*,RejoinerMonth
+,CASE WHEN i.Fixed_Account IS NOT NULL THEN 1 ELSE 0 END AS RejoinerPopFlag
+## Probar con febrero, luego automatizar
+,CASE WHEN RejoinerMonth>='2022-02-01' AND RejoinerMonth<=DATE_ADD('2022-02-01',INTERVAL 4 MONTH) THEN 1 ELSE 0 END AS Fixed_PRFeb
+FROM FixedCustomerBase f LEFT JOIN InactiveUsersMonth i ON f.Fixed_Account=i.Fixed_Account AND Fixed_Month=ExitMonth
+)
 
-/*SELECT Fixed_Month, ChurnType, count(*)
-FROM CRUCECHURNERSCRM
-GROUP BY 1,2
-ORDER BY 1 DESC*/
+,FixedRejoinerFebPopulation AS(
+SELECT DISTINCT Fixed_Month,RejoinerPopFlag,Fixed_PRFeb,Fixed_Account,'2022-02-01' AS Month
+FROM RejoinersPopulation
+WHERE RejoinerPopFlag=1
+AND Fixed_PRFeb=1
+AND Fixed_Month<>'2022-02-01'
+GROUP BY 1,2,3,4
+)
+
+,FullFixedBase_Rejoiners AS(
+SELECT DISTINCT f.*,Fixed_PRFeb
+,CASE WHEN Fixed_PRFeb=1 AND MainMovement="Come Back to Life" 
+THEN 1 ELSE 0 END AS Fixed_RejoinerFeb
+FROM CRUCECHURNERSCRM f LEFT JOIN FixedRejoinerFebPopulation r ON f.Fixed_Account=r.Fixed_Account AND f.Fixed_Month=SAFE_CAST(r.Month AS DATE)
+)
+
+SELECT *
+FROM FullFixedBase_Rejoiners
