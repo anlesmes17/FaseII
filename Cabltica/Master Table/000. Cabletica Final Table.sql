@@ -183,11 +183,72 @@ ELSE "Non Churner" END AS FinalChurnFlag,
 FROM CustomerBase_FMC_Tech_Flags c
 )
 
+,RejoinerColumn AS (
+  SELECT DISTINCT  f.*
+,CASE WHEN Fixed_RejoinerFeb = 1 AND E_FMC_Segment = "P1_Fixed" THEN "Fixed Rejoiner"
+WHEN (Fixed_RejoinerFeb = 1) OR ((Fixed_RejoinerFeb = 1) and  (E_FMCType = "Soft FMC" OR E_FMCType = "Near FMC")) THEN "FMC Rejoiner"
+END AS Rejoiner_FinalFlag,
+FROM CustomerBase_FMCSegments_ChurnFlag f
+WHERE Month = '2022-02-01' 
+)
+
+
+
+############################################ Waterfall ######################################################
+
+
+
+,FullCustomersBase_Flags_Waterfall AS(
+
+SELECT DISTINCT f.*,
+CASE 
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (B_NumRGUs < E_NumRGUs) AND ((Mobile_ActiveBOM=Mobile_ActiveEOM) OR (Mobile_ActiveBOM is null and Mobile_ActiveEOM is null) ) THEN "Upsell"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (B_NumRGUs > E_NumRGUs) AND ((Mobile_ActiveBOM=Mobile_ActiveEOM) OR (Mobile_ActiveBOM is null and Mobile_ActiveEOM is null) ) THEN "Downsell"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (B_NumRGUs = E_NumRGUs) AND (TOTAL_B_MRC = TOTAL_E_MRC) THEN "Maintain"
+WHEN (Final_BOM_ActiveFlag = 0 and Final_EOM_ActiveFlag = 1) AND ((MainMovement = "New Customer" AND MobileMovementFlag = "3.Gross Add/ rejoiner") OR (MainMovement = "New Customer" AND MobileMovementFlag IS NULL) OR (MainMovement IS NULL AND MobileMovementFlag = "3.Gross Add/ rejoiner")) THEN "Fixed Gross Add or Mobile Gross Add/ Rejoiner"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (B_NumRGUs = E_NumRGUs) AND (TOTAL_E_MRC > TOTAL_E_MRC) THEN "Downspin"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (B_NumRGUs = E_NumRGUs) AND (TOTAL_B_MRC < TOTAL_E_MRC) THEN "Upspin"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (ACTIVEBOM IS NULL AND ACTIVEEOM IS NULL) AND (Mobile_ActiveBOM=1 AND Mobile_ActiveEOM=1) THEN "Maintain"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (FinalChurnFlag="Fixed Churner") AND (Mobile_ActiveBOM=1 AND Mobile_ActiveEOM=1) THEN "Fixed Churner"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (FinalChurnFlag="Fixed Churner") AND (Mobile_ActiveBOM=0 AND Mobile_ActiveEOM=1) THEN "Fixed to Mobile Customer Gap"
+WHEN FinalChurnFlag="Full Churner" Then "Full Churner"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (Mobile_ActiveBOM=0 AND Mobile_ActiveEOM=1) AND (ActiveBOM=1 AND ActiveEOM=1) THEN "Mobile Gross Adds"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (ActiveBOM=1 AND ActiveEOM=1) AND (Mobile_ActiveBOM=1 AND Mobile_ActiveEOM=0) THEN "Mobile Churner"
+
+
+/*
+WHEN (FinalChurnFlag = "Fixed Churner" and (ActiveBOM = 0 or ActiveBOM is null)) THEN "Churn Exception"
+WHEN (Final_BOM_ActiveFlag = 0 and Final_EOM_ActiveFlag = 1) AND ((MainMovement = "New Customer" AND MobileMovementFlag = "3.Gross Add/ rejoiner") OR (MainMovement = "New Customer" AND MobileMovementFlag IS NULL) OR (MainMovement IS NULL AND MobileMovementFlag = "3.Gross Add/ rejoiner")) THEN "Fixed Gross Add or Mobile Gross Add/ Rejoiner"
+WHEN (Final_BOM_ActiveFlag = 0 and Final_EOM_ActiveFlag = 1) AND (MainMovement = "Come Back to Life") AND (Rejoiner_FinalFlag IS NULL) THEN "Fixed Gross Add or Mobile Gross Add/ Rejoiner"
+WHEN (Final_BOM_ActiveFlag = 0 and Final_EOM_ActiveFlag = 1) AND (((Rejoiner_FinalFlag ="Fixed Rejoiner" OR Rejoiner_FinalFlag = "Mobile Rejoiner") AND (E_FMCType = "Soft FMC" OR E_FMCType = "Near FMC"))  OR Rejoiner_FinalFlag = "FMC Rejoiner") THEN "FMC Rejoiner"
+WHEN (Final_BOM_ActiveFlag = 0 and Final_EOM_ActiveFlag = 1) AND (MainMovement = "Come Back to Life") AND (Rejoiner_FinalFlag = "Fixed Rejoiner" AND E_FMC_Segment = "P1_Fixed") THEN "Fixed Rejoiner"
+WHEN (Final_BOM_ActiveFlag = 0 and Final_EOM_ActiveFlag = 1) AND (MainMovement = "Come Back to Life") AND (Rejoiner_FinalFlag = "Fixed Rejoiner" AND E_FMC_Segment = "P1_Fixed") THEN "Fixed Rejoiner"
+WHEN (Final_BOM_ActiveFlag = 0 and Final_EOM_ActiveFlag = 1) AND (MobileMovementFlag = "Come Back to Life") AND (Rejoiner_FinalFlag = "Mobile Rejoiner" AND E_FMC_Segment = "P1_Mobile")  THEN "Mobile Rejoiner"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND  Rejoiner_FinalFlag IS NOT NULL then "Semi-rejoiner"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (B_NumRGUs < E_NumRGUs) THEN "Upsell"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (B_NumRGUs > E_NumRGUs) THEN "Downsell"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (B_NumRGUs = E_NumRGUs) AND (safe_cast(TOTAL_B_MRC as float64) = safe_cast(TOTAL_E_MRC as float64)) THEN "Maintain"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (B_NumRGUs = E_NumRGUs) AND (TOTAL_B_MRC < TOTAL_E_MRC) THEN "Upspin"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (B_NumRGUs = E_NumRGUs) AND (TOTAL_E_MRC > TOTAL_E_MRC) THEN "Downspin"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (B_NumRGUs = E_NumRGUs) AND (TOTAL_E_MRC > TOTAL_E_MRC) THEN "Downspin"
+
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 0) AND (FinalChurnFlag <> "Non Churner" AND FixedChurnType = "Voluntario") THEN "Voluntary Churners"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 0) AND (FinalChurnFlag <> "Non Churner" AND FixedChurnType = "Involuntario") THEN "Involuntary Churners"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 0) AND (FinalChurnFlag <> "Non Churner" AND  FinalChurnFlag= "Mobile Churner") THEN "Mobile Churner"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND ((ActiveBOM=0 or ActiveBOM is null) and (ActiveEOM=0 or ActiveEOM is null)) THEN "Maintain"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND ActiveBOM=1 AND ActiveEOM=1 AND Mobile_ActiveEOM is null and FinalChurnFlag="Fixed Churner" THEN "Fixed Churner Gap" 
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND ActiveBOM=1 AND ActiveEOM=1 AND Mobile_ActiveEOM=0 THEN "Full Churner Gap"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (ActiveBOM=1 AND ActiveEOM=0) AND (Mobile_ActiveBOM=0 AND Mobile_ActiveEOM=1) THEN "Fixed To Mobile"
+WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (ActiveBOM=0 AND ActiveEOM=1) AND (Mobile_ActiveBOM=1 AND Mobile_ActiveEOM=0) THEN "Mobile To Fixed"
+*/
+END AS Waterfall_Flag
+FROM RejoinerColumn f
+)
+
+
+
 
 SELECT distinct *
-FROM CustomerBase_FMCSegments_ChurnFlag
-WHERE Month = '2022-02-01' 
-
-
-
+FROM FullCustomersBase_Flags_Waterfall
+WHERE Month = '2022-02-01' AND Waterfall_Flag is null
 
