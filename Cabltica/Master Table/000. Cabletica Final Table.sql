@@ -179,7 +179,7 @@ WHEN (FixedChurnType is not null and MobileChurnFlag is null) then "Fixed Churne
 WHEN (FixedChurnType is null and MobileChurnFlag is NOT null) then "Mobile Churner"
 WHEN (FixedChurnType is null and MobileChurnFlag is null and (ActiveEOM = 0 OR ActiveEOM is null) AND (Mobile_ActiveEOM = 0 or Mobile_ActiveEOM IS NULL)) THEN "Customer Gap"
 ELSE "Non Churner" END AS FinalChurnFlag,
- ifnull(TOTAL_E_MRC,0) - ifnull(TOTAL_B_MRC,0) AS MRC_Change
+ round(ifnull(TOTAL_E_MRC,0) - ifnull(TOTAL_B_MRC,0),0) AS MRC_Change
 FROM CustomerBase_FMC_Tech_Flags c
 )
 
@@ -223,8 +223,8 @@ WHEN (Final_BOM_ActiveFlag = 0 and Final_EOM_ActiveFlag = 1) AND E_FMC_Segment="
 WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (ActiveBOM=0 AND ActiveEOM=1) AND (Mobile_ActiveBOM=1 AND Mobile_ActiveEOM=1) THEN "FMC Packing"
 WHEN B_FMC_Status="Undefined FMC" OR E_FMC_Status="Undefined FMC" THEN "Gap Undefined FMC"
 WHEN FinalChurnFlag="Customer Gap" THEN "Customer Gap"
-
-
+WHEN (Final_BOM_ActiveFlag = 0 and Final_EOM_ActiveFlag = 1)  AND (ActiveBOM=0 AND ActiveEOM=1) AND (Mobile_ActiveBOM=0 AND Mobile_ActiveEOM=1) THEN "FMC Gross Add"
+WHEN (Final_BOM_ActiveFlag = 0 and Final_EOM_ActiveFlag = 1)  AND (ActiveBOM=0 AND ActiveEOM=1) AND FixedChurnType IS NOT NULL THEN "Customer Gap" 
 END AS Waterfall_Flag
 FROM RejoinerColumn f
 )
@@ -234,5 +234,6 @@ FROM RejoinerColumn f
 
 SELECT distinct *
 FROM FullCustomersBase_Flags_Waterfall
-WHERE Month = '2022-02-01' AND Waterfall_Flag is null
+WHERE Month = '2022-02-01'  AND  B_FMC_Segment="P1_Fixed" AND E_FMC_Segment="P1_Mobile" AND FinalChurnFlag<>"Churn Exception"
+AND FinalChurnFlag<>"Customer Gap" AND FinalChurnFlag<>"Fixed Churner"
 
