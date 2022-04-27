@@ -170,6 +170,7 @@ CASE WHEN E_FMCType="Customer Gap" THEN "Customer Gap"
 WHEN (E_FMCType = "Soft FMC" OR E_FMCType="Near FMC" OR E_FMCType="Undefined FMC") AND (ActiveEOM = 1 and Mobile_ActiveEOM=1) AND E_MIX = "1P" AND (FixedChurnType IS NULL and MobileChurnFlag IS NULL) THEN "P2"
 WHEN (E_FMCType  = "Soft FMC" OR E_FMCType="Near FMC" OR E_FMCType="Undefined FMC") AND (ActiveEOM = 1 and Mobile_ActiveEOM=1) AND E_MIX = "2P" AND (FixedChurnType IS NULL and MobileChurnFlag IS NULL) THEN "P3"
 WHEN (E_FMCType  = "Soft FMC" OR E_FMCType="Near FMC" OR E_FMCType="Undefined FMC") AND (ActiveEOM = 1 and Mobile_ActiveEOM=1) AND E_MIX = "3P" AND (FixedChurnType IS NULL and MobileChurnFlag IS NULL) THEN "P4"
+
 WHEN ((E_FMCType  = "Fixed 1P" OR E_FMCType  = "Fixed 2P" OR E_FMCType  = "Fixed 3P") OR ((E_FMCType  = "Soft FMC" OR E_FMCType="Near FMC" OR E_FMCType="Undefined FMC") AND(Mobile_ActiveEOM= 0 OR Mobile_ActiveEOM IS NULL))) AND (ActiveEOM = 1 AND FixedChurnType IS NULL) THEN "P1_Fixed"
 WHEN ((E_FMCType = "Mobile Only")  OR (E_FMCType  = "Soft FMC" AND(ActiveEOM= 0 OR ActiveEOM IS NULL))) AND (Mobile_ActiveEOM = 1 and MobileChurnFlag IS NULL) THEN "P1_Mobile"
 END AS E_FMC_Segment,
@@ -200,8 +201,11 @@ WHERE Month = '2022-02-01'
 
 ,FullCustomersBase_Flags_Waterfall AS(
 
-SELECT DISTINCT f.*,
-CASE 
+SELECT DISTINCT f.* except(E_FMC_Segment),
+CASE WHEN (B_FMCTYPE="Fixed 1P" OR B_FMCType="Fixed 2P" OR B_FMCType="Fixed 3P" ) AND E_FMCType="Mobile Only" AND FinalChurnFlag<>"Churn Exception"
+AND FinalChurnFlag<>"Customer Gap" AND FinalChurnFlag<>"Fixed Churner" THEN "Customer Gap"
+ELSE E_FMC_Segment END AS E_FMC_Segment
+,CASE 
 WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (B_NumRGUs < E_NumRGUs) AND ((Mobile_ActiveBOM=Mobile_ActiveEOM) OR (Mobile_ActiveBOM is null and Mobile_ActiveEOM is null) ) THEN "Upsell"
 WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (B_NumRGUs > E_NumRGUs) AND ((Mobile_ActiveBOM=Mobile_ActiveEOM) OR (Mobile_ActiveBOM is null and Mobile_ActiveEOM is null) ) THEN "Downsell"
 WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (B_NumRGUs = E_NumRGUs) AND (TOTAL_B_MRC = TOTAL_E_MRC) THEN "Maintain"
@@ -229,11 +233,7 @@ END AS Waterfall_Flag
 FROM RejoinerColumn f
 )
 
-
-
-
-SELECT distinct *
-FROM FullCustomersBase_Flags_Waterfall
-WHERE Month = '2022-02-01'  AND  B_FMC_Segment="P1_Fixed" AND E_FMC_Segment="P1_Mobile" AND FinalChurnFlag<>"Churn Exception"
-AND FinalChurnFlag<>"Customer Gap" AND FinalChurnFlag<>"Fixed Churner"
-
+SELECT * FROM FullCustomersBase_Flags_Waterfall
+WHERE --Waterfall_Flag ="Upspin" AND
+Month = '2022-02-01'
+--Order by MRC_Change asc
