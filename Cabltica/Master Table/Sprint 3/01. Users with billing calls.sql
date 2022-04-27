@@ -26,6 +26,17 @@ SELECT F.*, NumCalls
 FROM FinalTable f LEFT JOIN CallsPerUser 
 ON safe_cast(CONTRATO AS string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) AS string) AND safe_cast(Call_Month as string)=Month
 )
-SELECT Distinct(Month), COUNT(distinct FIxed_ACCOUNT) FROM CallsMasterTable 
-WHERE  NumCalls Is not null AND (B_FMC_Segment IN('P1_Fixed','P2','P3','P4') OR E_FMC_Segment IN('P1_Fixed','P2','P3','P4'))
+
+,CustomerBase AS(
+SELECT Distinct(Month), COUNT(distinct Fixed_ACCOUNT) AS CustomerBase,FROM CallsMasterTable 
+WHERE  (B_FMC_Segment IN('P1_Fixed','P2','P3','P4') OR E_FMC_Segment IN('P1_Fixed','P2','P3','P4'))
 GROUP BY 1
+)
+,NumberOfCaller AS (
+SELECT Distinct(Month), COUNT(distinct Fixed_ACCOUNT) AS NumCallers,FROM CallsMasterTable 
+WHERE NumCalls IS NOT NULL AND (B_FMC_Segment IN('P1_Fixed','P2','P3','P4') OR E_FMC_Segment IN('P1_Fixed','P2','P3','P4'))
+GROUP BY 1
+)
+
+SELECT C.*, NumCallers, round(NumCallers/CustomerBase,3) AS PercentageCallers
+FROM CustomerBase c LEFT JOIN NumberOfCaller n ON c.Month=n.Month 
