@@ -1,7 +1,13 @@
+CREATE OR REPLACE TABLE
+
+`gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Final_Table_DashboardInput_v2` AS
+
 WITH 
 
+
+
 Fixed_Base AS(
-  SELECT DISTINCT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Fixed_DashboardInput`
+  SELECT DISTINCT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Fixed_DashboardInput_v2`
 
 )
 
@@ -190,7 +196,7 @@ FROM CustomerBase_FMC_Tech_Flags c
 WHEN (Fixed_RejoinerFeb = 1) OR ((Fixed_RejoinerFeb = 1) and  (E_FMCType = "Soft FMC" OR E_FMCType = "Near FMC")) THEN "FMC Rejoiner"
 END AS Rejoiner_FinalFlag,
 FROM CustomerBase_FMCSegments_ChurnFlag f
-WHERE Month = '2022-02-01' 
+--WHERE Month = '2022-02-01' 
 )
 
 
@@ -234,6 +240,3 @@ FROM RejoinerColumn f
 )
 
 SELECT * FROM FullCustomersBase_Flags_Waterfall
-WHERE --Waterfall_Flag ="Upspin" AND
-Month = '2022-02-01'
---Order by MRC_Change asc
