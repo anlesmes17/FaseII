@@ -255,5 +255,5 @@ THEN 1 ELSE 0 END AS Fixed_RejoinerFeb
 FROM CRUCECHURNERSCRM f LEFT JOIN FixedRejoinerFebPopulation r ON f.Fixed_Account=r.Fixed_Account AND f.Fixed_Month=SAFE_CAST(r.Month AS DATE)
 )
 
-SELECT *
+SELECT *, CONCAT(ifnull(B_VO_nm,""),ifnull(B_TV_nm,""),ifnull(B_BB_nm,"")) AS B_PLAN,CONCAT(ifnull(E_VO_nm,""),ifnull(E_TV_nm,""),ifnull(E_BB_nm,"")) AS E_PLAN
 FROM FullFixedBase_Rejoiners
