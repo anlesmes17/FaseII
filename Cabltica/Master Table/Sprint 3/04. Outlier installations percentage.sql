@@ -11,7 +11,7 @@ FinalTable AS (
         TIMESTAMP_DIFF(FECHA_FINALIZACION,FECHA_APERTURA,DAY) AS DIAS_INSTALACION,
         CASE WHEN TIMESTAMP_DIFF(FECHA_FINALIZACION,FECHA_APERTURA,DAY) >= 6 THEN 1 ELSE NULL END AS OUTLIER,
         CASE WHEN NOMBRE_CONTRATO IS NOT NULL THEN "Installation" ELSE NULL END AS Installations
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-03-30_ORDENES_SERVICIO_2022_V2_PRELIMINAR_T`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-01-12_CR_ORDENES_SERVICIO_2021-01_A_2021-11_D`
     WHERE
         TIPO_ORDEN = 'INSTALACION' 
         AND ESTADO = 'FINALIZADA'
@@ -34,3 +34,4 @@ GROUP BY 1
 
 SELECT C.*, NumOutliers, round(NumOutliers/NumInstallations,3) AS PercentageOutliers
 FROM Installations c LEFT JOIN Outliers n ON c.Month=n.Month
+ORDER BY Month
