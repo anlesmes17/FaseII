@@ -220,7 +220,7 @@ FROM ServiceOrders
 )
 
 ,CRUCECHURNERSCRM AS(
- SELECT DISTINCT C.* except(B_TV_id, E_TV_id, B_TV_nm, E_TV_nm, B_BB_id, E_BB_id), FixedChurnType, 
+ SELECT DISTINCT C.* except(B_TV_id, E_TV_id, B_BB_id, E_BB_id), FixedChurnType, 
  FROM CustomerBaseWithChurners  c LEFT JOIN CHURNTYPEFLAGSO s ON safe_cast(s.Contratoso as string)= act_acct_cd AND date_trunc(primerchurnSO, month) = Fixed_Month
 )
 ########################################## Churners #####################################################
