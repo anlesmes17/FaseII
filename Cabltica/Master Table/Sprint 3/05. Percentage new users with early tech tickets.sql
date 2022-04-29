@@ -17,7 +17,7 @@ FinalTable AS (
 
 ,INSTALACION_CONTRATOS AS (
     SELECT DISTINCT RIGHT(CONCAT('0000000000',ACT_ACCT_CD),10) AS ACT_ACCT_CD, DATE(MIN(ACT_ACCT_INST_DT)) AS INSTALLATION_DT, DATE_TRUNC(DATE(MIN(ACT_ACCT_INST_DT)),MONTH) AS InstallationMonth
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-02-16_FINAL_HISTORIC_CRM_FILE_2021_D`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2021_mar_2022_D`
     GROUP BY 1
     --HAVING DATE_TRUNC(INSTALLATION_DT, MONTH) = '2022-01-01'  -- solo instalaciones en enero
 )
@@ -51,3 +51,4 @@ GROUP BY 1
 
 SELECT C.*, NumLlamadas, round(NumLlamadas/NumInstallations,3) AS PercentageTechTickets
 FROM Installations c LEFT JOIN Llamadas n ON c.Month=n.Month
+ORDER BY Month
