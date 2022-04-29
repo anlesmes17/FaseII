@@ -181,7 +181,7 @@ FROM ServiceOrders
 )
 
 ,CRUCECHURNERSCRM AS(
- SELECT DISTINCT C.* except(B_TV_id, E_TV_id, B_TV_nm, E_TV_nm, B_BB_id, E_BB_id), FixedChurnType, 
+ SELECT DISTINCT C.* except(B_TV_id, E_TV_id,B_BB_id, E_BB_id), FixedChurnType, 
  FROM CustomerBaseWithChurners  c LEFT JOIN CHURNTYPEFLAGSO s ON safe_cast(s.Contratoso as string)= act_acct_cd AND date_trunc(primerchurnSO, month) = Fixed_Month
 )
 ########################################## Churners #####################################################
@@ -216,5 +216,5 @@ THEN 1 ELSE 0 END AS Fixed_RejoinerFeb
 FROM CRUCECHURNERSCRM f LEFT JOIN FixedRejoinerFebPopulation r ON f.Fixed_Account=r.Fixed_Account AND f.Fixed_Month=SAFE_CAST(r.Month AS DATE)
 )
 
-SELECT *
+SELECT *, CONCAT(ifnull(B_VO_nm,""),ifnull(B_TV_nm,""),ifnull(B_BB_nm,"")) AS B_PLAN,CONCAT(ifnull(E_VO_nm,""),ifnull(E_TV_nm,""),ifnull(E_BB_nm,"")) AS E_PLAN
 FROM FullFixedBase_Rejoiners
