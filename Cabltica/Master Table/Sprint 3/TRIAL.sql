@@ -76,7 +76,7 @@ FROM NeverPaidMasterTable m LEFT JOIN Installations v ON Month=safe_cast(v.Insta
 
 ,CONTRATOS_LLAMADAS AS (
   SELECT *,
-    CASE WHEN DATE_DIFF(FECHA_LLAMADA,INSTALLATION_DT,DAY) <= 21 THEN ACT_ACCT_CD ELSE NULL END AS LLAMADA_21D, -- llamadas hasta 21 días después de la instalación
+    CASE WHEN DATE_DIFF(FECHA_LLAMADA,INSTALLATION_DT,DAY) <= 21 THEN ACT_ACCT_CD ELSE NULL END AS LLAMADA_EarlyIssue_21D, -- llamadas hasta 21 días después de la instalación
     CASE WHEN DATE_DIFF(FECHA_LLAMADA,INSTALLATION_DT,DAY) <= 49 THEN ACT_ACCT_CD ELSE NULL END AS LLAMADA_7W, -- llamadas hasta 7 semanas (49 días) después de la instalación
     CASE WHEN DATE_DIFF(FECHA_LLAMADA,INSTALLATION_DT,MONTH) BETWEEN 2 AND 6 THEN ACT_ACCT_CD ELSE NULL END AS LLAMADA_2M_6M -- llamadas entre 2 y 6 meses después de la instalación
   FROM INSTALACION_CONTRATOS AS i
@@ -86,25 +86,24 @@ FROM NeverPaidMasterTable m LEFT JOIN Installations v ON Month=safe_cast(v.Insta
 )
 
 ,UserCallDistribution AS (
-SELECT DISTINCT ACT_ACCT_CD, DATE_TRUNC(INSTALLATION_DT,MONTH) AS InstallationMonth,Installations, COUNT(LLAMADA_21D) AS LLAMADAS_21D, COUNT(LLAMADA_7W) AS Llamadas7semanas, COUNT(LLAMADA_2M_6M) AS Llamadas2a6meses
+SELECT DISTINCT ACT_ACCT_CD, DATE_TRUNC(INSTALLATION_DT,MONTH) AS InstallationMonth,Installations, COUNT(LLAMADA_EarlyIssue_21D) AS LLAMADAS_EarlyIssue_21D, COUNT(LLAMADA_7W) AS Llamadas7semanas, COUNT(LLAMADA_2M_6M) AS Llamadas2a6meses
 FROM CONTRATOS_LLAMADAS
 GROUP BY 1,2,3
 )
 
 ,LlamadasMasterTable AS(
-  SELECT f.*,Installations, LLAMADAS_21D, Llamadas7semanas, Llamadas2a6meses,  
+  SELECT f.*,Installations, LLAMADAS_EarlyIssue_21D, Llamadas7semanas, Llamadas2a6meses,  
   FROM NewInstallations f LEFT JOIN UserCallDistribution c ON safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string)=safe_cast(c.ACT_ACCT_CD as string) AND safe_cast( InstallationMonth as string)=Month 
 )
 ,LlamadasAjustado AS(
-SELECT l.* except(LLAMADAS_21D, Llamadas7semanas, Llamadas2a6meses),
-CASE WHEN LLAMADAS_21D =0 THEN NULL ELSE LLAMADAS_21D END AS LLAMADAS_21D,
+SELECT l.* except(LLAMADAS_EarlyIssue_21D, Llamadas7semanas, Llamadas2a6meses),
+CASE WHEN LLAMADAS_EarlyIssue_21D =0 THEN NULL ELSE LLAMADAS_EarlyIssue_21D END AS LLAMADAS_EarlyIssue_21D,
 CASE WHEN Llamadas7semanas=0 THEN NULL ELSE Llamadas7semanas END AS Llamadas7semanas,
 CASE WHEN Llamadas2a6meses=0 THEN NULL ELSE Llamadas2a6meses END AS Llamadas2a6meses
 FROM LlamadasMasterTable l
 )
 
 ################################## New users early tech tickets ###########################################
-
 
 ,TIQUETES AS(
     SELECT DISTINCT RIGHT(CONCAT('0000000000',CONTRATO),10) AS CONTRATO, FECHA_APERTURA AS FECHA_TIQUETE, DATE_TRUNC(FECHA_APERTURA,MONTH) AS MES_TIQUETE, TIQUETE
@@ -114,13 +113,13 @@ FROM LlamadasMasterTable l
         AND ESTADO <> "ANULADA"
         AND TIQUETE NOT IN (SELECT DISTINCT TIQUETE FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-01-19_CR_TIQUETES_AVERIAS_2021-01_A_2021-11_D` WHERE CLIENTE LIKE '%SIN PROBLEMA%')
 )
-/*
-,INSTALACION_CONTRATOS AS (
+
+,INSTALACIONES_TECH AS (
     SELECT DISTINCT RIGHT(CONCAT('0000000000',ACT_ACCT_CD),10) AS ACT_ACCT_CD, DATE(MIN(ACT_ACCT_INST_DT)) AS INSTALLATION_DT, DATE_TRUNC(DATE(MIN(ACT_ACCT_INST_DT)),MONTH) AS InstallationMonth
     FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2021_mar_2022_D`
     GROUP BY 1
     --HAVING DATE_TRUNC(INSTALLATION_DT, MONTH) = '2022-01-01'  -- solo instalaciones en enero
-)*/
+)
 
 
 
@@ -128,37 +127,39 @@ FROM LlamadasMasterTable l
   SELECT DISTINCT * EXCEPT (TIQUETE, FECHA_TIQUETE),
     CASE WHEN DATE_DIFF(FECHA_TIQUETE,INSTALLATION_DT,DAY) BETWEEN 3 AND 49 THEN ACT_ACCT_CD ELSE NULL END AS LLAMADA_7W, -- llamadas hasta 7 semanas (49 días) después de la instalación
     CASE WHEN INSTALLATION_DT IS NOT NULL THEN "Installation" ELSE NULL END AS Installations
-  FROM Installations AS i
+  FROM INSTALACIONES_TECH AS i
   LEFT JOIN TIQUETES AS l
-    ON safe_cast(i.ACT_ACCT_CD as string) = l.CONTRATO
+    ON i.ACT_ACCT_CD = l.CONTRATO
     AND l.FECHA_TIQUETE >= i.INSTALLATION_DT -- el tiquete debe ser después de la instalación
-  
 )
-SELECT * FROM CONTRATOS_TIQUETES
-WHERE LLAMADA_7W IS NOT NULL
 
 ,CallsMasterTable AS (
-  SELECT DISTINCT f.*, INSTALLATION_DT, LLAMADA_7W 
-  FROM LlamadasAjustado f LEFT JOIN CONTRATOS_TIQUETES c 
-  ON RIGHT(CONCAT('0000000000',Fixed_Account),10)=RIGHT(CONCAT('0000000000',c.ACT_ACCT_CD),10) AND Month=safe_cast(InstallationMonth as string)
-  WHERE LLAMADA_7w is not null
+  SELECT DISTINCT f.*, LLAMADA_7W FROM LlamadasAjustado f LEFT JOIN CONTRATOS_TIQUETES c ON RIGHT(CONCAT('0000000000',Fixed_Account),10)=RIGHT(CONCAT('0000000000',c.ACT_ACCT_CD),10) AND Month=safe_cast(InstallationMonth as string)
+
 )
 
-,kpi5Installations AS(
-SELECT Distinct(Month) AS Month, COUNT(distinct Fixed_Account) AS NumInstallations,FROM CallsMasterTable 
-WHERE Installations IS NOT NULL AND (B_FMC_Segment IN('P1_Fixed','P2','P3','P4') OR E_FMC_Segment IN('P1_Fixed','P2','P3','P4'))
-GROUP BY 1
+############################################# Bill Claims #####################################################
+
+,CALLS AS (
+SELECT RIGHT(CONCAT('0000000000',CONTRATO),10) AS CONTRATO, DATE_TRUNC(FECHA_APERTURA, MONTH) AS Call_Month, TIQUETE_ID
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-01-12_CR_TIQUETES_SERVICIO_2021-01_A_2021-11_D`
+    WHERE 
+        CLASE IS NOT NULL AND MOTIVO IS NOT NULL AND CONTRATO IS NOT NULL
+        AND ESTADO <> "ANULADA"
+        AND TIPO <> "GESTION COBRO"
+        AND MOTIVO NOT IN ("LLAMADA  CONSULTA DESINSTALACION","CONSULTAS DE INSTALACIONES")
+        AND MOTIVO = "CONSULTAS DE FACTURACION O COBRO" -- billing
 )
-,kpi5Llamadas AS (
-SELECT Distinct(Month), COUNT(distinct Fixed_account) AS NumLlamadas,FROM CallsMasterTable 
-WHERE LLAMADA_7W IS NOT NULL AND (B_FMC_Segment IN('P1_Fixed','P2','P3','P4') OR E_FMC_Segment IN('P1_Fixed','P2','P3','P4'))
-GROUP BY 1
+,CallsPerUser AS (
+    SELECT DISTINCT CONTRATO, Call_Month, Count(DISTINCT TIQUETE_ID) AS NumCalls
+    FROM CALLS
+    GROUP BY CONTRATO, Call_Month
 )
 
-SELECT C.*, NumLlamadas, round(NumLlamadas/NumInstallations,3) AS PercentageTechTickets
-FROM kpi5Installations c LEFT JOIN kpi5Llamadas n ON c.Month=n.Month
-ORDER BY Month
+--,BillingCallsMasterTable AS (
+SELECT F.*, NumCalls
+FROM CallsMasterTable f LEFT JOIN CallsPerUser 
+ON safe_cast(CONTRATO AS string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) AS string) AND safe_cast(Call_Month as string)=Month
+--)
 
-
-
-
+#########################################
