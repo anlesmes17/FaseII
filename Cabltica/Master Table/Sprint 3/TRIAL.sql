@@ -242,18 +242,38 @@ WHEN Abs_MRC_Change>(TOTAL_B_MRC*(.05)) AND B_PLAN=E_PLAN THEN "Bill Schock" ELS
 FROM AbsMRC
 )
 
-,BaseNoChanges AS (
-SELECT Month, COUNT(DISTINCT Fixed_Account) AS AccountsNoChanges FROM BillShocks
-GROUP BY 1
-)
-,CountBillShocks AS (
-  SELECT Month, COUNT(DISTINCT Fixed_Account) AS BillChanges 
-  FROM BillShocks
-  WHERE BillShocksKPI IS NOT NULL
-  GROUP BY 1
-)
-SELECT b.Month, AccountsNoChanges, BillChanges
-FROM BaseNoChanges b LEFT JOIN CountBillShocks c ON b.Month=c.Month
-ORDER BY Month
+########################################### Outlier Installations ################################################
 
-########################################### Mounting Bills ######################################################
+,INSTALACIONES_OUTLIER AS (
+    SELECT DISTINCT RIGHT(CONCAT('0000000000',ACT_ACCT_CD),10) AS ACT_ACCT_CD, DATE(MIN(ACT_ACCT_INST_DT)) AS INSTALLATION_DT, DATE_TRUNC(DATE(MIN(ACT_ACCT_INST_DT)),MONTH) AS InstallationMonth
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2021_mar_2022_D`
+    GROUP BY 1
+)
+
+,tiempo_instalacion AS (
+    SELECT RIGHT(CONCAT('0000000000',NOMBRE_CONTRATO),10) AS NOMBRE_CONTRATO,DATE_TRUNC(SAFE_CAST(FECHA_FINALIZACION AS DATE),MONTH) AS InstallationMonth,
+        TIMESTAMP_DIFF(FECHA_FINALIZACION,FECHA_APERTURA,DAY) AS DIAS_INSTALACION,
+        CASE WHEN TIMESTAMP_DIFF(FECHA_FINALIZACION,FECHA_APERTURA,DAY) >= 6 THEN 1 ELSE NULL END AS OUTLIER,
+        CASE WHEN NOMBRE_CONTRATO IS NOT NULL THEN "Installation" ELSE NULL END AS Installations
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-01-12_CR_ORDENES_SERVICIO_2021-01_A_2021-11_D`
+    WHERE
+        TIPO_ORDEN = 'INSTALACION' 
+        AND ESTADO = 'FINALIZADA'
+        AND TIPO_CLIENTE IN ("PROGRAMA HOGARES CONECTADOS", "RESIDENCIAL", "EMPLEADO")
+)
+
+,Installations_6_days AS (
+    SELECT ACT_ACCT_CD, a.InstallationMonth, b.OUTLIER FROM INSTALACIONES_OUTLIER a LEFT JOIN tiempo_instalacion b
+    ON safe_cast(NOMBRE_CONTRATO as string)=safe_cast(ACT_ACCT_CD as string) AND a.InstallationMonth=b.InstallationMonth
+)
+
+
+,OutliersMasterTable AS (
+    SELECT f.*, OUTLIER
+    FROM AbsMrc f LEFT JOIN Installations_6_days b ON safe_cast(b.ACT_ACCT_CD as string)=RIGHT(CONCAT('0000000000',Fixed_Account),10) AND Month=safe_cast(InstallationMonth AS string)
+
+)
+SELECT  month, count(outlier) from OutliersMasterTable
+GROUP BY 1
+ORDER BY 1
+############################################ Mounting Bills ###############################################
