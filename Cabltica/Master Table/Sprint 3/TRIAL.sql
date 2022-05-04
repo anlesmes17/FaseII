@@ -95,7 +95,6 @@ GROUP BY 1,2,3
 ,LlamadasAjustado AS(
   SELECT DISTINCT f.*,EarlyIssue_Flag
   FROM NeverPaidMasterTable f LEFT JOIN CONTRATOS_LLAMADAS c ON safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string)=safe_cast(c.CONTRATO as string) AND safe_cast( InstallationMonth as string)=Month 
-WHERE MONTH="2022-02-01"
 )
 
 
