@@ -34,7 +34,6 @@ FinalTable AS (
 ,InstallationChurners AS(
   SELECT V.*,CONTRATOCRM, FECHA_CHURN, CHURNTYPEFLAGSO, CHURN_MONTH, 
   FROM Installations v LEFT JOIN churn ON safe_cast(RIGHT(CONCAT('0000000000',act_acct_cd),10) as string)=safe_cast(RIGHT(CONCAT('0000000000',CONTRATOCRM),10) as string)
-
 )
 
 ,never_paid_flag AS (
@@ -79,11 +78,12 @@ FROM NeverPaids m LEFT JOIN Installations v ON Month=safe_cast(v.InstallationMon
 
 ,CONTRATOS_LLAMADAS AS (
   SELECT distinct * EXCEPT(FECHA_LLAMADA),
-    CASE WHEN DATE_DIFF(FECHA_LLAMADA,INSTALLATION_DT,DAY) <= 21 THEN ACT_ACCT_CD ELSE NULL END AS EarlyIssue_Flag, -- llamadas hasta 21 días después de la instalación
+    CASE WHEN DATE_DIFF(MIN(FECHA_LLAMADA),INSTALLATION_DT,DAY) <= 21 THEN ACT_ACCT_CD ELSE NULL END AS EarlyIssue_Flag, -- llamadas hasta 21 días después de la instalación
   FROM INSTALACION_CONTRATOS AS i
   LEFT JOIN LLAMADAS AS l
     ON i.ACT_ACCT_CD = l.CONTRATO
     AND l.FECHA_LLAMADA >= i.INSTALLATION_DT -- el tiquete debe ser después de la instalación
+    GROUP BY 1,2,3,4
 )
 
 ,UserCallDistribution AS (
@@ -199,14 +199,7 @@ ON safe_cast(CONTRATO AS string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Accou
             max(cast (LAST_PAYMENT_DT as date) ) AS LAST_PAYMENT_DT,
             min(fi_outst_age) as min_fi_outst_age, 
             max(fi_outst_age) as max_fi_outst_age,
-            -- ARRAY_AGG(bundle_name IGNORE NULLS order by load_dt LIMIT 1)[OFFSET (0)]as bundle_name,
-            -- ARRAY_AGG(pd_vo_prod_nm IGNORE NULLS order by load_dt LIMIT 1)[OFFSET (0)]as pd_vo_prod_nm,
-            -- ARRAY_AGG(pd_tv_prod_nm IGNORE NULLS order by load_dt LIMIT 1)[OFFSET (0)]as pd_tv_prod_nm,
-            -- ARRAY_AGG(pd_bb_prod_nm IGNORE NULLS order by load_dt LIMIT 1)[OFFSET (0)]as pd_bb_prod_nm,
-            -- ARRAY_AGG(pd_mix_nm IGNORE NULLS order by load_dt LIMIT 1)[OFFSET (0)]as pd_mix_nm,
             CASE WHEN (max(fi_outst_age) >=26 ) then act_acct_cd ELSE NULL END AS SoftDx_Flag,
-            --CASE WHEN act_acct_cd IS NOT NULL THEN "New sale" ELSE NULL
-            --END AS NewSales 
     FROM first_bill_dna
     GROUP BY 1
     ORDER BY ACT_ACCT_CD
@@ -231,7 +224,7 @@ SELECT *, abs(mrc_change) AS Abs_MRC_Change FROM SalesMasterTable
 ,BillShocks AS (
 SELECT DISTINCT *,
 CASE
-WHEN Abs_MRC_Change>(TOTAL_B_MRC*(.05)) AND B_PLAN_ADJ=E_PLAN_ADJ THEN act_acct_cd ELSE NULL END AS increase_flag
+WHEN Abs_MRC_Change>(TOTAL_B_MRC*(.05)) AND B_PLAN_ADJ=E_PLAN_ADJ AND no_plan_change_flag is not null THEN act_acct_cd ELSE NULL END AS increase_flag
 FROM AbsMRC
 )
 
