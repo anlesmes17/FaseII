@@ -1,11 +1,11 @@
 WITH
 
 FinalTable AS (
-    SELECT *,CONCAT(ifnull(B_Plan,""),ifnull(safe_cast(Mobile_ActiveBOM as string),"")) AS B_PLAN_ADJ, CONCAT(ifnull(E_Plan,""),ifnull(safe_cast(Mobile_ActiveEOM as string),"")) AS E_PLAN_ADJ 
+    SELECT DISTINCT *,CONCAT(ifnull(B_Plan,""),ifnull(safe_cast(Mobile_ActiveBOM as string),"")) AS B_PLAN_ADJ, CONCAT(ifnull(E_Plan,""),ifnull(safe_cast(Mobile_ActiveEOM as string),"")) AS E_PLAN_ADJ 
     FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Final_Table_DashboardInput_v2`
 ) 
 ,FinalTablePlanAdj AS (
-    SELECT *, 
+    SELECT DISTINCT *, 
     CASE WHEN B_PLAN_ADJ=E_PLAN_ADJ THEN Fixed_Account ELSE NULL END AS no_plan_change_flag
     FROM FinalTable
 )
@@ -38,7 +38,7 @@ FinalTable AS (
 )
 
 ,never_paid_flag AS (
-SELECT d.*, c.act_acct_cd as InstallationAccount,DATE_TRUNC(MIN(safe_cast(ACT_ACCT_INST_DT as date)),MONTH) AS InstallationMonth,CHURNTYPEFLAGSO,CHURN_MONTH,
+SELECT DISTINCT d.*, c.act_acct_cd as InstallationAccount,DATE_TRUNC(MIN(safe_cast(ACT_ACCT_INST_DT as date)),MONTH) AS InstallationMonth,CHURNTYPEFLAGSO,CHURN_MONTH,
 DATE_DIFF(CST_CHRN_DT,ACT_ACCT_INST_DT,DAY) AS DAYS_WO_PAYMENT,
 CASE WHEN DATE_DIFF(CST_CHRN_DT,ACT_ACCT_INST_DT,DAY) <= 119 THEN d.ACT_ACCT_CD ELSE NULL END AS NeverPaid_Flag
 FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2021_mar_2022_D` d
@@ -150,7 +150,7 @@ SELECT RIGHT(CONCAT('0000000000',CONTRATO),10) AS CONTRATO, DATE_TRUNC(FECHA_APE
 )
 
 ,BillingCallsMasterTable AS (
-SELECT F.*, CASE WHEN NumCalls IS NOT NULL THEN CONTRATO ELSE NULL END AS BillClaim_Flag
+SELECT DISTINCT F.*, CASE WHEN NumCalls IS NOT NULL THEN CONTRATO ELSE NULL END AS BillClaim_Flag
 FROM CallsMasterTable f LEFT JOIN CallsPerUser 
 ON safe_cast(CONTRATO AS string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) AS string) AND safe_cast(Call_Month as string)=Month
 )
@@ -217,7 +217,7 @@ ON safe_cast(CONTRATO AS string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Accou
     )
 
 ,SalesMasterTable AS (
-SELECT F.*, SoftDx_Flag,
+SELECT DISTINCT F.*, SoftDx_Flag,
 FROM BillingCallsMasterTable f LEFT JOIN SOFT_DX_INSTALLS s
 ON safe_cast(s.act_acct_cd AS string)=safe_cast(Fixed_Account AS string) AND DATE_TRUNC(safe_cast(s.FECHA_INSTALACION as date),MONTH)=safe_cast(Month as date)
 )
@@ -226,12 +226,12 @@ ON safe_cast(s.act_acct_cd AS string)=safe_cast(Fixed_Account AS string) AND DAT
 
 ,AbsMRC AS (
 SELECT *, abs(mrc_change) AS Abs_MRC_Change FROM SalesMasterTable
-WHERE (B_FMC_Segment IN('P1_Fixed','P2','P3','P4') OR E_FMC_Segment IN('P1_Fixed','P2','P3','P4'))
+
 )
 ,BillShocks AS (
-SELECT *,
+SELECT DISTINCT *,
 CASE
-WHEN Abs_MRC_Change>(TOTAL_B_MRC*(.05)) AND B_PLAN=E_PLAN THEN act_acct_cd ELSE NULL END AS increase_flag
+WHEN Abs_MRC_Change>(TOTAL_B_MRC*(.05)) AND B_PLAN_ADJ=E_PLAN_ADJ THEN act_acct_cd ELSE NULL END AS increase_flag
 FROM AbsMRC
 )
 
@@ -262,9 +262,8 @@ FROM AbsMRC
 
 
 ,OutliersMasterTable AS (
-    SELECT f.*, long_install_flag
+    SELECT DISTINCT f.*, long_install_flag
     FROM BillShocks f LEFT JOIN Installations_6_days b ON safe_cast(b.ACT_ACCT_CD as string)=RIGHT(CONCAT('0000000000',Fixed_Account),10) AND Month=safe_cast(InstallationMonth AS string)
-
 )
 
 ################################################# Excel Table ###############################################
