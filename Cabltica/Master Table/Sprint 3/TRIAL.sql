@@ -11,7 +11,6 @@ FinalTable AS (
 )
 
 
-
 ####################################### Involuntarios Never Paid ###############################################
 ,Installations AS (
     SELECT DATE_TRUNC(FECHA_INSTALACION,MONTH) AS InstallationMonth,act_acct_cd, INSTALLATION_DT,monthsale_Flag
@@ -47,8 +46,6 @@ RIGHT JOIN InstallationChurners c
     ON d.ACT_ACCT_CD = CAST(c.CONTRATOCRM AS INT) AND d.FECHA_EXTRACCION = DATE(c.FECHA_CHURN)
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,
     37,38,40,41,42,43
-
-    
 )
 
 
@@ -288,7 +285,8 @@ select Month, B_TechAdj, B_FMC_Segment, E_TechAdj, E_FMC_Segment, count(distinct
 count(distinct monthsale_flag) as Sales, count(distinct SoftDx_Flag) as Soft_Dx, 
 count(distinct NeverPaid_Flag) as NeverPaid, count(distinct long_install_flag) as Long_installs, 
 count (distinct increase_flag) as MRC_Increases, count (distinct no_plan_change_flag) as NoPlan_Changes,
-count(distinct EarlyIssue_Flag) as EarlyIssueCall
+count(distinct EarlyIssue_Flag) as EarlyIssueCall, count(distinct TechCall_Flag) as TechCalls,
+count(distinct BillClaim_Flag) as BillClaim
 from OutliersMasterTable
 Group by 1,2,3,4,5
 Order by 1 desc, 2,3,4,5
