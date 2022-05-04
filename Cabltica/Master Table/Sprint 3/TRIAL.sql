@@ -50,12 +50,12 @@ RIGHT JOIN InstallationChurners c
 
 
 ,NeverPaids AS(
-  SELECT f.*,InstallationAccount,CHURNTYPEFLAGSO, NeverPaid_Flag,  
+  SELECT DISTINCT f.*,InstallationAccount,CHURNTYPEFLAGSO, NeverPaid_Flag,  
   FROM FinalTablePlanAdj f LEFT JOIN never_paid_flag c ON safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string)=safe_cast(RIGHT(CONCAT('0000000000',c.InstallationAccount),10) as string) AND safe_cast(InstallationMonth as string)=Month 
 ORDER BY NeverPaid_Flag DESC
 )
 ,NeverPaidMasterTable AS(
-SELECT m.*, monthsale_Flag
+SELECT DISTINCT m.*, monthsale_Flag
 FROM NeverPaids m LEFT JOIN Installations v ON Month=safe_cast(v.InstallationMonth as string) AND v.act_acct_cd=Fixed_Account 
 )
 
@@ -63,7 +63,7 @@ FROM NeverPaids m LEFT JOIN Installations v ON Month=safe_cast(v.InstallationMon
 
 
 ,LLAMADAS AS(
-    SELECT RIGHT(CONCAT('0000000000',CONTRATO),10) AS CONTRATO, FECHA_APERTURA AS FECHA_LLAMADA, TIQUETE_ID
+    SELECT RIGHT(CONCAT('0000000000',CONTRATO),10) AS CONTRATO, FECHA_APERTURA AS FECHA_LLAMADA
     FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-01-12_CR_TIQUETES_SERVICIO_2021-01_A_2021-11_D`
     WHERE CLASE IS NOT NULL AND MOTIVO IS NOT NULL AND CONTRATO IS NOT NULL
         AND ESTADO <> "ANULADA"
@@ -72,18 +72,14 @@ FROM NeverPaids m LEFT JOIN Installations v ON Month=safe_cast(v.InstallationMon
 )
 
 ,INSTALACION_CONTRATOS AS (
-    SELECT RIGHT(CONCAT('0000000000',ACT_ACCT_CD),10) AS ACT_ACCT_CD, DATE(MIN(ACT_ACCT_INST_DT)) AS INSTALLATION_DT,
-    CASE WHEN act_acct_cd IS NOT NULL THEN "Installation" ELSE NULL
-    END AS Installations
+    SELECT RIGHT(CONCAT('0000000000',ACT_ACCT_CD),10) AS ACT_ACCT_CD, DATE(MIN(ACT_ACCT_INST_DT)) AS INSTALLATION_DT, DATE_TRUNC(DATE(MIN(ACT_ACCT_INST_DT)),MONTH) AS InstallationMonth
     FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2021_mar_2022_D`
-    GROUP BY 1,3
+    GROUP BY 1
 )
 
 ,CONTRATOS_LLAMADAS AS (
-  SELECT *,
+  SELECT distinct * EXCEPT(FECHA_LLAMADA),
     CASE WHEN DATE_DIFF(FECHA_LLAMADA,INSTALLATION_DT,DAY) <= 21 THEN ACT_ACCT_CD ELSE NULL END AS EarlyIssue_Flag, -- llamadas hasta 21 días después de la instalación
-    CASE WHEN DATE_DIFF(FECHA_LLAMADA,INSTALLATION_DT,DAY) <= 49 THEN ACT_ACCT_CD ELSE NULL END AS LLAMADA_7W, -- llamadas hasta 7 semanas (49 días) después de la instalación
-    CASE WHEN DATE_DIFF(FECHA_LLAMADA,INSTALLATION_DT,MONTH) BETWEEN 2 AND 6 THEN ACT_ACCT_CD ELSE NULL END AS LLAMADA_2M_6M -- llamadas entre 2 y 6 meses después de la instalación
   FROM INSTALACION_CONTRATOS AS i
   LEFT JOIN LLAMADAS AS l
     ON i.ACT_ACCT_CD = l.CONTRATO
@@ -91,22 +87,17 @@ FROM NeverPaids m LEFT JOIN Installations v ON Month=safe_cast(v.InstallationMon
 )
 
 ,UserCallDistribution AS (
-SELECT DISTINCT ACT_ACCT_CD, DATE_TRUNC(INSTALLATION_DT,MONTH) AS InstallationMonth,Installations, COUNT(EarlyIssue_Flag) AS EarlyIssue_Flag, COUNT(LLAMADA_7W) AS Llamadas7semanas, COUNT(LLAMADA_2M_6M) AS Llamadas2a6meses
+SELECT DISTINCT ACT_ACCT_CD, DATE_TRUNC(INSTALLATION_DT,MONTH) AS InstallationMonth,EarlyIssue_Flag
 FROM CONTRATOS_LLAMADAS
 GROUP BY 1,2,3
 )
 
-,LlamadasMasterTable AS(
-  SELECT f.*,Installations, EarlyIssue_Flag, Llamadas7semanas, Llamadas2a6meses,  
-  FROM NeverPaidMasterTable f LEFT JOIN UserCallDistribution c ON safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string)=safe_cast(c.ACT_ACCT_CD as string) AND safe_cast( InstallationMonth as string)=Month 
-)
 ,LlamadasAjustado AS(
-SELECT l.* except(EarlyIssue_Flag, Llamadas7semanas, Llamadas2a6meses),
-CASE WHEN EarlyIssue_Flag =0 THEN NULL ELSE Fixed_Account END AS EarlyIssue_Flag,
-CASE WHEN Llamadas7semanas=0 THEN NULL ELSE Llamadas7semanas END AS Llamadas7semanas,
-CASE WHEN Llamadas2a6meses=0 THEN NULL ELSE Llamadas2a6meses END AS Llamadas2a6meses
-FROM LlamadasMasterTable l
+  SELECT DISTINCT f.*,EarlyIssue_Flag
+  FROM NeverPaidMasterTable f LEFT JOIN CONTRATOS_LLAMADAS c ON safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string)=safe_cast(c.CONTRATO as string) AND safe_cast( InstallationMonth as string)=Month 
+WHERE MONTH="2022-02-01"
 )
+
 
 ################################## New users early tech tickets ###########################################
 
@@ -123,7 +114,6 @@ FROM LlamadasMasterTable l
     SELECT DISTINCT RIGHT(CONCAT('0000000000',ACT_ACCT_CD),10) AS ACT_ACCT_CD, DATE(MIN(ACT_ACCT_INST_DT)) AS INSTALLATION_DT, DATE_TRUNC(DATE(MIN(ACT_ACCT_INST_DT)),MONTH) AS InstallationMonth
     FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2021_mar_2022_D`
     GROUP BY 1
-    --HAVING DATE_TRUNC(INSTALLATION_DT, MONTH) = '2022-01-01'  -- solo instalaciones en enero
 )
 
 
@@ -131,7 +121,6 @@ FROM LlamadasMasterTable l
 ,CONTRATOS_TIQUETES AS (
   SELECT DISTINCT * EXCEPT (TIQUETE, FECHA_TIQUETE),
     CASE WHEN DATE_DIFF(FECHA_TIQUETE,INSTALLATION_DT,DAY) BETWEEN 3 AND 49 THEN ACT_ACCT_CD ELSE NULL END AS TechCall_Flag, -- llamadas hasta 7 semanas (49 días) después de la instalación
-    --CASE WHEN INSTALLATION_DT IS NOT NULL THEN "Installation" ELSE NULL END AS Installations
   FROM INSTALACIONES_TECH AS i
   LEFT JOIN TIQUETES AS l
     ON i.ACT_ACCT_CD = l.CONTRATO
@@ -281,7 +270,7 @@ FROM AbsMRC
 
 ################################################# Excel Table ###############################################
 
-select Month, B_TechAdj, B_FMC_Segment, E_TechAdj, E_FMC_Segment, count(distinct fixed_account) as activebase, 
+select Month, B_FinalTechFlag, B_FMC_Segment, E_FinalTechFlag, E_FMC_Segment, count(distinct fixed_account) as activebase, 
 count(distinct monthsale_flag) as Sales, count(distinct SoftDx_Flag) as Soft_Dx, 
 count(distinct NeverPaid_Flag) as NeverPaid, count(distinct long_install_flag) as Long_installs, 
 count (distinct increase_flag) as MRC_Increases, count (distinct no_plan_change_flag) as NoPlan_Changes,
