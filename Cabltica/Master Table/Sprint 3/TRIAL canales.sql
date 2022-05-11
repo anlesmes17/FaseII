@@ -299,6 +299,7 @@ where Categoria_Canal is not null
     CASE WHEN Categoria_canal="Ventas Empresariales" THEN Fixed_Account ELSE NULL END AS CanalVentasEmpresariales_Flag,
     CASE WHEN Categoria_canal="Sin datos" THEN Fixed_Account ELSE NULL END AS CanalSinDatos_Flag,
     From ChannelsMasterTable f
+    where monthsale_flag is null
 
 )
 
@@ -314,13 +315,11 @@ count(distinct CanalITS_Flag) as CanalITS,count(distinct CanalSinDatos_Flag) as 
 count(distinct CanalAgentesAutorizados_Flag) as CanalAgentesAutorizados,
 count(distinct CanalVentasResidenciales_Flag) as CanalVentasResidenciales,
 count(distinct CanalTeleventas_Flag) as CanalTeleventas,
-
 count(distinct CanalNETCOM_Flag) as CanalNETCOM,
-count(distinct CanalNoDefinido_Flag) as CanalNoDefinido_Flag,
-count(distinct CanalHotelesCondominios_Flag) as CanalHotelesCondominios_Flag,
-
-count(distinct CanalNoDefinido_Flag) as CanalNoDefinido_Flag,
-count(distinct CanalHotelesCondominios_Flag) as CanalHotelesCondominios_Flag,
+count(distinct CanalNoDefinido_Flag) as CanalNoDefinido,
+count(distinct CanalHotelesCondominios_Flag) as CanalHotelesCondominios,
+count(distinct CanalVentasEmpresariales_Flag) as CanalVentasEmpresariales,
+count(distinct CanalEyS_Flag) as CanalEyS,
 
 
 from DistinctSalesChannel
