@@ -278,7 +278,7 @@ group by 1,2,3
 select act_acct_cd, contrato,InstallationMonth, Categoria_Canal 
 from Installations left join FechaFin
 on RIGHT(CONCAT('0000000000',CONTRATO),10)=RIGHT(CONCAT('0000000000',ACT_ACCT_CD),10) and InstallationMonth=date_trunc(FechaFinal,month)
-where Categoria_Canal is not null
+
 )
 ,ChannelsMasterTable AS (
     select distinct f.*, categoria_canal from OutliersMasterTable f left join SalesChannelsInstallations
@@ -286,7 +286,7 @@ where Categoria_Canal is not null
 )
 
 ,DistinctSalesChannel AS (
-    Select f.*,
+    Select f.* except(B_Bundle_Type,B_BundleName,B_MIX,B_TechAdj,B_MORA,B_VO_MRC,B_TV_MRC,B_BB_MRC,E_VO_id,E_VO_nm,E_TV_nm,E_BB_nm,B_RGU_VO,B_RGU_TV,B_RGU_BB,B_NumRGUs,B_Overdue,E_RGU_VO,E_RGU_TV,E_RGU_BB,E_NumRGUs,E_Overdue,E_Bundle_Type,E_BundleName,E_MIX,E_TechAdj,E_TenureType,E_MORA,E_VO_MRC,E_BB_MRC,E_TV_MRC,DIF_RGU_BB,DIF_RGU_TV,DIF_RGU_VO,DIF_TOTAL_RGU),
     CASE WHEN Categoria_canal="Oficina" THEN Fixed_Account ELSE NULL END AS CanalOficina_Flag,
     CASE WHEN Categoria_canal="*No Definido*" OR (monthsale_flag is not null and categoria_canal is null) THEN Fixed_Account ELSE NULL END AS CanalNoDefinido_Flag,
     CASE WHEN Categoria_canal="Agentes Autorizados" THEN Fixed_Account ELSE NULL END AS CanalAgentesAutorizados_Flag,
@@ -299,7 +299,7 @@ where Categoria_Canal is not null
     CASE WHEN Categoria_canal="Ventas Empresariales" THEN Fixed_Account ELSE NULL END AS CanalVentasEmpresariales_Flag,
     CASE WHEN Categoria_canal="Sin datos" THEN Fixed_Account ELSE NULL END AS CanalSinDatos_Flag,
     From ChannelsMasterTable f
-    where monthsale_flag is null
+
 
 )
 
@@ -319,9 +319,9 @@ count(distinct CanalNETCOM_Flag) as CanalNETCOM,
 count(distinct CanalNoDefinido_Flag) as CanalNoDefinido,
 count(distinct CanalHotelesCondominios_Flag) as CanalHotelesCondominios,
 count(distinct CanalVentasEmpresariales_Flag) as CanalVentasEmpresariales,
-count(distinct CanalEyS_Flag) as CanalEyS,
+count(distinct CanalEyS_Flag) as CanalEyS,categoria_canal
 
 
 from DistinctSalesChannel
-Group by 1,2,3,4
+Group by 1,2,3,4,26
 Order by 1 desc, 2,3,4
