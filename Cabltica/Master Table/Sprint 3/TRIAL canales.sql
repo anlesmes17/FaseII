@@ -262,29 +262,35 @@ FROM AbsMRC
 ######################################## Sales Channel ######################################################
 
 ,SalesChannel as (
-SELECT distinct contrato,Categoria_Canal, case 
+SELECT distinct contrato,Categoria_Canal,subcanal_venta, case 
 WHEN formato_fecha like "%2022" then parse_date("%d/%m/%Y",formato_fecha) else safe_cast(formato_fecha as date) end as FechaAdj
 FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220510-Altas_ene_2021_abr_2022` 
---WHERE Tipo_alta="Nueva" AND Tipo_Movimiento= "Altas por venta" AND (Motivo="VENTA NUEVA " OR Motivo="VENTA")
-group by 1,2,3
+group by 1,2,3,formato_fecha
 )
 ,FechaFin AS (
-    Select *, min(FechaAdj) AS FechaFinal From SalesChannel
-    group by 1,2,3
+    Select distinct  *, min(FechaAdj) AS FechaFinal From SalesChannel
+    group by 1,2,3,4
 
 )
 
 ,SalesChannelsInstallations as (
-select act_acct_cd, contrato,InstallationMonth, Categoria_Canal 
+select distinct act_acct_cd, contrato,InstallationMonth, Categoria_Canal, subcanal_venta,
 from Installations left join FechaFin
 on RIGHT(CONCAT('0000000000',CONTRATO),10)=RIGHT(CONCAT('0000000000',ACT_ACCT_CD),10) and InstallationMonth=date_trunc(FechaFinal,month)
 
 )
 ,ChannelsMasterTable AS (
-    select distinct f.*, categoria_canal from OutliersMasterTable f left join SalesChannelsInstallations
+    select distinct f.*, categoria_canal, subcanal_venta, from OutliersMasterTable f left join SalesChannelsInstallations
     on RIGHT(CONCAT('0000000000',CONTRATO),10)=RIGHT(CONCAT('0000000000',Fixed_Account),10) AND safe_cast(InstallationMonth as string)=Month
 )
+,ChannelAndSubchannel AS (
+  SELECT distinct *, CASE
+  WHEN Subcanal_venta="INHOUSE FORMULARIO" OR Subcanal_venta="INHOUSE CHAT" OR Subcanal_venta="INHOUSE WP" OR Subcanal_venta="ITS FORMULARIOS" OR
+  Subcanal_venta="ITS WP" OR Subcanal_venta="ITS WP MOVISTAR" OR Subcanal_venta="ITS CHAT" OR Subcanal_venta="INHOUSE WP MOVISTAR" Then "Digital"
+  Else categoria_canal END AS SalesChannelAdjusted FROM ChannelsMasterTable
+)
 
+/*
 ,DistinctSalesChannel AS (
     Select f.* except(B_Bundle_Type,B_BundleName,B_MIX,B_TechAdj,B_MORA,B_VO_MRC,B_TV_MRC,B_BB_MRC,E_VO_id,E_VO_nm,E_TV_nm,E_BB_nm,B_RGU_VO,B_RGU_TV,B_RGU_BB,B_NumRGUs,B_Overdue,E_RGU_VO,E_RGU_TV,E_RGU_BB,E_NumRGUs,E_Overdue,E_Bundle_Type,E_BundleName,E_MIX,E_TechAdj,E_TenureType,E_MORA,E_VO_MRC,E_BB_MRC,E_TV_MRC,DIF_RGU_BB,DIF_RGU_TV,DIF_RGU_VO,DIF_TOTAL_RGU),
     CASE WHEN Categoria_canal="Oficina" THEN Fixed_Account ELSE NULL END AS CanalOficina_Flag,
@@ -301,16 +307,27 @@ on RIGHT(CONCAT('0000000000',CONTRATO),10)=RIGHT(CONCAT('0000000000',ACT_ACCT_CD
     From ChannelsMasterTable f
 
 
-)
+)*/
+,FinalSalesChannel AS(
+select DISTINCT * except(categoria_canal, subcanal_venta), CASE
+WHEN SalesChannelAdjusted="Digital"  THEN "Digital"
+WHEN SalesChannelAdjusted="Agentes Autorizados" OR SalesChannelAdjusted="Ventas Residenciales" THEN "D2D"
+WHEN SalesChannelAdjusted="Televentas" OR SalesChannelAdjusted="ITS" THEN "Telesales"
+WHEN SalesChannelAdjusted="*No Definido*" OR SalesChannelAdjusted="Sin datos" THEN "Undefined/ No Data"
+WHEN SalesChannelAdjusted="Oficina" THEN "Retail"
+WHEN SalesChannelAdjusted="NETCOM" OR SalesChannelAdjusted="Hoteles/Condominios" OR SalesChannelAdjusted="Ventas Empresariales" THEN "Other"
+ELSE NULL END AS Categoria_canal
+from ChannelAndSubchannel
 
+)
 ################################################# Excel Table ###############################################
 
-select Month, E_FinalTechFlag, E_FMC_Segment,E_FMCType, count(distinct fixed_account) as activebase, 
+select distinct Month, E_FinalTechFlag, E_FMC_Segment,E_FMCType, count(distinct fixed_account) as activebase, 
 count(distinct monthsale_flag) as Sales, count(distinct SoftDx_Flag) as Soft_Dx, 
 count(distinct NeverPaid_Flag) as NeverPaid, count(distinct long_install_flag) as Long_installs, 
 count (distinct increase_flag) as MRC_Increases, count (distinct no_plan_change_flag) as NoPlan_Changes,
 count(distinct EarlyIssue_Flag) as EarlyIssueCall, count(distinct TechCall_Flag) as TechCalls,
-count(distinct BillClaim_Flag) as BillClaim,count(distinct CanalOficina_Flag) as CanalOficina,
+count(distinct BillClaim_Flag) as BillClaim,/*count(distinct CanalOficina_Flag) as CanalOficina,
 count(distinct CanalITS_Flag) as CanalITS,count(distinct CanalSinDatos_Flag) as CanalSinDatos,
 count(distinct CanalAgentesAutorizados_Flag) as CanalAgentesAutorizados,
 count(distinct CanalVentasResidenciales_Flag) as CanalVentasResidenciales,
@@ -319,9 +336,9 @@ count(distinct CanalNETCOM_Flag) as CanalNETCOM,
 count(distinct CanalNoDefinido_Flag) as CanalNoDefinido,
 count(distinct CanalHotelesCondominios_Flag) as CanalHotelesCondominios,
 count(distinct CanalVentasEmpresariales_Flag) as CanalVentasEmpresariales,
-count(distinct CanalEyS_Flag) as CanalEyS,categoria_canal
+count(distinct CanalEyS_Flag) as CanalEyS,*/categoria_canal
 
 
-from DistinctSalesChannel
-Group by 1,2,3,4,26
+from FinalSalesChannel
+Group by 1,2,3,4,15
 Order by 1 desc, 2,3,4
