@@ -287,6 +287,8 @@ on RIGHT(CONCAT('0000000000',CONTRATO),10)=RIGHT(CONCAT('0000000000',ACT_ACCT_CD
   SELECT distinct *, CASE
   WHEN Subcanal_venta="INHOUSE FORMULARIO" OR Subcanal_venta="INHOUSE CHAT" OR Subcanal_venta="INHOUSE WP" OR Subcanal_venta="ITS FORMULARIOS" OR
   Subcanal_venta="ITS WP" OR Subcanal_venta="ITS WP MOVISTAR" OR Subcanal_venta="ITS CHAT" OR Subcanal_venta="INHOUSE WP MOVISTAR" Then "Digital"
+  WHEN Subcanal_venta="OUTBOUND CAC" OR Subcanal_venta="OUTBOUND TELEVENTAS" OR Subcanal_venta="OUTBOUND SUCURSALES" OR Subcanal_venta="ITS OUTBOUND" OR Subcanal_venta="ITS CRIANZA" OR Subcanal_venta="ITS CORREO" THEN "Televentas-Outbound"
+  WHEN Subcanal_venta="INHOUSE WP" OR Subcanal_venta="INHOUSE CHAT" OR Subcanal_venta="INHOUSE FORMULARIO" OR Subcanal_venta="TELE VENTAS" OR Subcanal_venta="ITS FORMULARIOS" OR Subcanal_venta="ITS INBOUND" THEN "Televentas-Inbound"
   Else categoria_canal END AS SalesChannelAdjusted FROM ChannelsMasterTable
 )
 
@@ -305,12 +307,12 @@ on RIGHT(CONCAT('0000000000',CONTRATO),10)=RIGHT(CONCAT('0000000000',ACT_ACCT_CD
     CASE WHEN Categoria_canal="Ventas Empresariales" THEN Fixed_Account ELSE NULL END AS CanalVentasEmpresariales_Flag,
     CASE WHEN Categoria_canal="Sin datos" THEN Fixed_Account ELSE NULL END AS CanalSinDatos_Flag,
     From ChannelsMasterTable f
-
-
 )*/
 ,FinalSalesChannel AS(
 select DISTINCT * except(categoria_canal, subcanal_venta), CASE
 WHEN SalesChannelAdjusted="Digital"  THEN "Digital"
+WHEN SalesChannelAdjusted="Televentas-Outbound"  THEN "Televentas-Outbound"
+WHEN SalesChannelAdjusted="Televentas-Inbound"  THEN "Televentas-Inbound"
 WHEN SalesChannelAdjusted="Agentes Autorizados" OR SalesChannelAdjusted="Ventas Residenciales" THEN "D2D"
 WHEN SalesChannelAdjusted="Televentas" OR SalesChannelAdjusted="ITS" THEN "Telesales"
 WHEN SalesChannelAdjusted="*No Definido*" OR SalesChannelAdjusted="Sin datos" THEN "Undefined/ No Data"
