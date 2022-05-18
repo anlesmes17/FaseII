@@ -295,22 +295,7 @@ on RIGHT(CONCAT('0000000000',CONTRATO),10)=RIGHT(CONCAT('0000000000',ACT_ACCT_CD
   Else categoria_canal END AS SalesChannelAdjusted FROM ChannelsMasterTable
 )
 
-/*
-,DistinctSalesChannel AS (
-    Select f.* except(B_Bundle_Type,B_BundleName,B_MIX,B_TechAdj,B_MORA,B_VO_MRC,B_TV_MRC,B_BB_MRC,E_VO_id,E_VO_nm,E_TV_nm,E_BB_nm,B_RGU_VO,B_RGU_TV,B_RGU_BB,B_NumRGUs,B_Overdue,E_RGU_VO,E_RGU_TV,E_RGU_BB,E_NumRGUs,E_Overdue,E_Bundle_Type,E_BundleName,E_MIX,E_TechAdj,E_TenureType,E_MORA,E_VO_MRC,E_BB_MRC,E_TV_MRC,DIF_RGU_BB,DIF_RGU_TV,DIF_RGU_VO,DIF_TOTAL_RGU),
-    CASE WHEN Categoria_canal="Oficina" THEN Fixed_Account ELSE NULL END AS CanalOficina_Flag,
-    CASE WHEN Categoria_canal="*No Definido*" OR (monthsale_flag is not null and categoria_canal is null) THEN Fixed_Account ELSE NULL END AS CanalNoDefinido_Flag,
-    CASE WHEN Categoria_canal="Agentes Autorizados" THEN Fixed_Account ELSE NULL END AS CanalAgentesAutorizados_Flag,
-    CASE WHEN Categoria_canal="Televentas" THEN Fixed_Account ELSE NULL END AS CanalTeleventas_Flag,
-    CASE WHEN Categoria_canal="ITS" THEN Fixed_Account ELSE NULL END AS CanalITS_Flag,
-    CASE WHEN Categoria_canal="NETCOM" THEN Fixed_Account ELSE NULL END AS CanalNETCOM_Flag,
-    CASE WHEN Categoria_canal="Ventas Residenciales" THEN Fixed_Account ELSE NULL END AS CanalVentasResidenciales_Flag,
-    CASE WHEN Categoria_canal="E&S" THEN Fixed_Account ELSE NULL END AS CanalEyS_Flag,
-    CASE WHEN Categoria_canal="Hoteles/Condominios" THEN Fixed_Account ELSE NULL END AS CanalHotelesCondominios_Flag,
-    CASE WHEN Categoria_canal="Ventas Empresariales" THEN Fixed_Account ELSE NULL END AS CanalVentasEmpresariales_Flag,
-    CASE WHEN Categoria_canal="Sin datos" THEN Fixed_Account ELSE NULL END AS CanalSinDatos_Flag,
-    From ChannelsMasterTable f
-)*/
+
 ,FinalSalesChannel AS(
 select DISTINCT * except(categoria_canal, subcanal_venta), CASE
 WHEN SalesChannelAdjusted="Digital"  THEN "Digital"
@@ -334,16 +319,7 @@ count(distinct monthsale_flag) as Sales, count(distinct SoftDx_Flag) as Soft_Dx,
 count(distinct NeverPaid_Flag) as NeverPaid, count(distinct long_install_flag) as Long_installs, 
 count (distinct increase_flag) as MRC_Increases, count (distinct no_plan_change_flag) as NoPlan_Changes,
 count(distinct EarlyIssue_Flag) as EarlyIssueCall, count(distinct TechCall_Flag) as TechCalls,
-count(distinct BillClaim_Flag) as BillClaim,/*count(distinct CanalOficina_Flag) as CanalOficina,
-count(distinct CanalITS_Flag) as CanalITS,count(distinct CanalSinDatos_Flag) as CanalSinDatos,
-count(distinct CanalAgentesAutorizados_Flag) as CanalAgentesAutorizados,
-count(distinct CanalVentasResidenciales_Flag) as CanalVentasResidenciales,
-count(distinct CanalTeleventas_Flag) as CanalTeleventas,
-count(distinct CanalNETCOM_Flag) as CanalNETCOM,
-count(distinct CanalNoDefinido_Flag) as CanalNoDefinido,
-count(distinct CanalHotelesCondominios_Flag) as CanalHotelesCondominios,
-count(distinct CanalVentasEmpresariales_Flag) as CanalVentasEmpresariales,
-count(distinct CanalEyS_Flag) as CanalEyS,*/categoria_canal
+count(distinct BillClaim_Flag) as BillClaim,categoria_canal
 
 
 from FinalSalesChannel
