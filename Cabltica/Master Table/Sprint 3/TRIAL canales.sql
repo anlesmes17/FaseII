@@ -287,8 +287,11 @@ on RIGHT(CONCAT('0000000000',CONTRATO),10)=RIGHT(CONCAT('0000000000',ACT_ACCT_CD
   SELECT distinct *, CASE
   WHEN Subcanal_venta="INHOUSE FORMULARIO" OR Subcanal_venta="INHOUSE CHAT" OR Subcanal_venta="INHOUSE WP" OR Subcanal_venta="ITS FORMULARIOS" OR
   Subcanal_venta="ITS WP" OR Subcanal_venta="ITS WP MOVISTAR" OR Subcanal_venta="ITS CHAT" OR Subcanal_venta="INHOUSE WP MOVISTAR" Then "Digital"
-  WHEN Subcanal_venta="OUTBOUND CAC" OR Subcanal_venta="OUTBOUND TELEVENTAS" OR Subcanal_venta="OUTBOUND SUCURSALES" OR Subcanal_venta="ITS OUTBOUND" OR Subcanal_venta="ITS CRIANZA" OR Subcanal_venta="ITS CORREO" THEN "Televentas-Outbound"
+  WHEN Subcanal_venta="OUTBOUND CAC" OR Subcanal_venta="OUTBOUND TELEVENTAS" OR Subcanal_venta="OUTBOUND SUCURSALES" OR Subcanal_venta="ITS OUTBOUND" OR Subcanal_venta="ITS CRIANZA" OR Subcanal_venta="ITS CORREO" 
+  OR Subcanal_venta="OUTBOUND ALBUFERA" OR Subcanal_venta="OUTBOUND DATA 506" OR Subcanal_venta="OUTBOUND TICO CEL" OR Subcanal_venta="OUTBOUND TEL MOVIL" OR Subcanal_venta="OUTBOUND RED ALO" THEN "Televentas-Outbound"
   WHEN Subcanal_venta="INHOUSE WP" OR Subcanal_venta="INHOUSE CHAT" OR Subcanal_venta="INHOUSE FORMULARIO" OR Subcanal_venta="TELE VENTAS" OR Subcanal_venta="ITS FORMULARIOS" OR Subcanal_venta="ITS INBOUND" THEN "Televentas-Inbound"
+  WHEN Subcanal_venta="VENTAS RESIDENCIALES" THEN "D2D-Local"
+  WHEN Subcanal_venta="CTVS" OR Subcanal_venta="" OR Subcanal_venta="CAMBIOS POSITIVOS" OR Subcanal_venta="UPGRADE SOLUTIONS" OR Subcanal_venta="CRC EN LINEA SA" OR Subcanal_venta="CONECTIVIDAD CR" THEN "D2D-Third Party"
   Else categoria_canal END AS SalesChannelAdjusted FROM ChannelsMasterTable
 )
 
@@ -313,6 +316,8 @@ select DISTINCT * except(categoria_canal, subcanal_venta), CASE
 WHEN SalesChannelAdjusted="Digital"  THEN "Digital"
 WHEN SalesChannelAdjusted="Televentas-Outbound"  THEN "Televentas-Outbound"
 WHEN SalesChannelAdjusted="Televentas-Inbound"  THEN "Televentas-Inbound"
+WHEN SalesChannelAdjusted="D2D-Local"  THEN "D2D-Local"
+WHEN SalesChannelAdjusted="D2D-Third Party"  THEN "D2D-Third Party"
 WHEN SalesChannelAdjusted="Agentes Autorizados" OR SalesChannelAdjusted="Ventas Residenciales" THEN "D2D"
 WHEN SalesChannelAdjusted="Televentas" OR SalesChannelAdjusted="ITS" THEN "Telesales"
 WHEN SalesChannelAdjusted="*No Definido*" OR SalesChannelAdjusted="Sin datos" THEN "Undefined/ No Data"
