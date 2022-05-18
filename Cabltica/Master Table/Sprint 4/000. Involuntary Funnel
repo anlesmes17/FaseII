@@ -1,0 +1,60 @@
+WITH 
+
+----------------------------------- Billing Columns Fix --------------------------------------
+
+InitialAdjustment AS (
+SELECT*, DATE_TRUNC(DATE_ADD(LST_PYM_DT, INTERVAL 1 MONTH),MONTH) AS OLDEST_UNPAID_BILL_ADJ
+FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2021_mar_2022_D`
+)
+
+,SecondAdjustment AS (
+  SELECT *, CASE
+  WHEN DATE_TRUNC(LST_PYM_DT,MONTH)=DATE_TRUNC(FECHA_EXTRACCION,MONTH) THEN NULL
+  ELSE OLDEST_UNPAID_BILL_ADJ END AS OLDEST_UNPAID_BILL_FINAL
+  FROM InitialAdjustment
+)
+
+,BillingColumnsAdjusted AS (
+  SELECT *, DATE_DIFF(FECHA_EXTRACCION, OLDEST_UNPAID_BILL_FINAL, DAY) AS FI_OUTST_AGE_FINAL 
+  FROM SecondAdjustment
+)
+
+------------------------------------ Involuntary Funnel ----------------------------------------
+
+,BillingMonth AS (
+  SELECT *, DATE_TRUNC(FECHA_EXTRACCION, MONTH) AS Month 
+  FROM BillingColumnsAdjusted
+  WHERE DATE_TRUNC(FI_BILL_DT_M0,MONTH)=DATE_TRUNC(FECHA_EXTRACCION,MONTH) AND (FI_OUTST_AGE_FINAL=0 OR FI_OUTST_AGE_FINAL IS NULL) 
+
+)
+
+,OverdueMonth AS (
+  SELECT *, DATE_TRUNC(FECHA_EXTRACCION, MONTH) AS Month 
+  FROM BillingColumnsAdjusted
+  WHERE FI_OUTST_AGE_FINAL>=21
+)
+
+,SoftDxMonth AS (
+  SELECT *, DATE_TRUNC(FECHA_EXTRACCION, MONTH) AS Month 
+  FROM BillingColumnsAdjusted
+  WHERE FI_OUTST_AGE_FINAL>=27
+)
+
+,HardDxMonth AS (
+  SELECT *, DATE_TRUNC(DATE_SUB(FECHA_EXTRACCION, INTERVAL 2 MONTH), MONTH) AS Month FROM BillingColumnsAdjusted
+  WHERE FI_OUTST_AGE_FINAL>=90
+)
+
+,Funnel AS (
+  SELECT DISTINCT a.Month AS InitialMonth, a.Act_acct_cd AS BillingAccount,b.Act_acct_cd AS OutstandingAccount,c.Act_acct_cd AS SoftDxAccount,d.Act_acct_cd AS HardDxAccount,
+  FROM BillingMonth a LEFT JOIN OverdueMonth b ON a.act_acct_cd=b.act_acct_cd and a.Month=b.Month
+  LEFT JOIN SoftDxMonth c ON a.act_acct_cd=c.act_acct_cd and a.Month=c.Month LEFT JOIN HardDxMonth d 
+  ON a.act_acct_cd=d.act_acct_cd and a.Month=d.Month
+)
+
+
+SELECT DISTINCT InitialMonth, count(distinct BillingAccount), count(distinct OutstandingAccount), count(distinct SoftDxAccount), count(distinct HardDxAccount)
+FROM Funnel
+Group by 1
+Order by 1
+
