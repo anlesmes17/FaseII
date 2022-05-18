@@ -12,12 +12,12 @@ MobileUsefulFields AS (
 )
 
 ,CustomerBase_BOM AS(
-  SELECT DISTINCT  Month AS B_Month, /*Contrato as B_Contrato, ID_CLIENTE as B_IdCliente,*/ NUM_IDENT as B_NumIdent, replace(ID_ABONADO,".","") as B_Mobile_Account, AGRUPACION_COMUNIDAD as B_Agrupacion
+  SELECT DISTINCT  DATE_TRUNC(safe_cast(date_add(safe_cast(Month as date), INTERVAL 1 Month) as date), Month) AS B_Month, /*Contrato as B_Contrato, ID_CLIENTE as B_IdCliente,*/ NUM_IDENT as B_NumIdent, replace(ID_ABONADO,".","") as B_Mobile_Account, AGRUPACION_COMUNIDAD as B_Agrupacion
   FROM MobileUsefulFields
 )
 
 ,CustomerBase_EOM AS(
-  SELECT DISTINCT DATE_TRUNC(safe_cast(date_sub(safe_cast(Month as date), INTERVAL 1 Month) as date), Month) AS E_Month, /*Contrato as E_Contrato, ID_CLIENTE as E_IdCliente,*/ NUM_IDENT as E_NumIdent, replace(ID_ABONADO,".","") as E_Mobile_Account, AGRUPACION_COMUNIDAD as E_Agrupacion
+  SELECT DISTINCT DATE_TRUNC(safe_cast(safe_cast(Month as date) as date), Month) AS E_Month, /*Contrato as E_Contrato, ID_CLIENTE as E_IdCliente,*/ NUM_IDENT as E_NumIdent, replace(ID_ABONADO,".","") as E_Mobile_Account, AGRUPACION_COMUNIDAD as E_Agrupacion
   FROM MobileUsefulFields
 )
 
@@ -125,7 +125,7 @@ FROM AllChurners m Left Join BaseMovimientos b ON Account_BOM= b.ID_ABONADO
 )*/
 ,CustomerBaseWithChurn AS (
     SELECT DISTINCT m.*, c.TIPO_BAJA
-    FROM MainMovements m LEFT JOIN BaseMovimientos c ON m.Mobile_Account=ID_ABONADO and date_sub(c.Month, INTERVAL 1 MONTH)=Mobile_Month
+    FROM MainMovements m LEFT JOIN BaseMovimientos c ON m.Mobile_Account=ID_ABONADO and c.Month=Mobile_Month
     --WHERE Mobile_Month="2022-02-01"
 )
 select distinct Mobile_Month, tipo_baja, count(distinct Mobile_Account)
