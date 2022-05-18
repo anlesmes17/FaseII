@@ -41,7 +41,7 @@ FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2
 )
 
 ,HardDxMonth AS (
-  SELECT *, DATE_TRUNC(DATE_SUB(FECHA_EXTRACCION, INTERVAL 2 MONTH), MONTH) AS Month FROM BillingColumnsAdjusted
+  SELECT *, DATE_TRUNC(DATE_SUB(FECHA_EXTRACCION, INTERVAL 3 MONTH), MONTH) AS Month FROM BillingColumnsAdjusted
   WHERE FI_OUTST_AGE_FINAL>=90
 )
 
@@ -53,7 +53,7 @@ FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2
 )
 
 
-SELECT DISTINCT InitialMonth, count(distinct BillingAccount), count(distinct OutstandingAccount), count(distinct SoftDxAccount), count(distinct HardDxAccount)
+SELECT DISTINCT InitialMonth, /*count(distinct BillingAccount),*/ count(distinct OutstandingAccount) AS Dia_1_Mora, count(distinct SoftDxAccount) AS SoftDx, count(distinct HardDxAccount) AS HardDx
 FROM Funnel
 Group by 1
 Order by 1
