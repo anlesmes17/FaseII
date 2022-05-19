@@ -301,7 +301,7 @@ on RIGHT(CONCAT('0000000000',CONTRATO),10)=RIGHT(CONCAT('0000000000',ACT_ACCT_CD
 )
 
 
-,FinalSalesChannel AS(
+--,FinalSalesChannel AS(
 select DISTINCT * except(categoria_canal, subcanal_venta), CASE
 WHEN SalesChannelAdjusted="Digital"  THEN "Digital"
 WHEN SalesChannelAdjusted="Televentas-Outbound"  THEN "Televentas-Outbound"
@@ -316,7 +316,7 @@ WHEN SalesChannelAdjusted="NETCOM" OR SalesChannelAdjusted="Hoteles/Condominios"
 ELSE NULL END AS Categoria_canal
 from ChannelAndSubchannel
 
-)
+/*)
 ################################################# Excel Table ###############################################
 
 select distinct Month, E_FinalTechFlag, E_FMC_Segment,E_FMCType, count(distinct fixed_account) as activebase, 
@@ -329,4 +329,4 @@ count(distinct BillClaim_Flag) as BillClaim,categoria_canal
 
 from FinalSalesChannel
 Group by 1,2,3,4,15
-Order by 1 desc, 2,3,4
+Order by 1 desc, 2,3,4*/
