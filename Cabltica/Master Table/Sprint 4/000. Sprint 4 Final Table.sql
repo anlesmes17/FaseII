@@ -38,7 +38,7 @@ FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2
   WHERE DATE_TRUNC(FI_BILL_DT_M0,MONTH)=DATE_TRUNC(FECHA_EXTRACCION,MONTH) AND (FI_OUTST_AGE_FINAL=0 OR FI_OUTST_AGE_FINAL IS NULL) 
 
 )
----Usuarios que llegan a dia 2 de mora
+---Usuarios que llegan a dia 1 de mora
 ,OverdueMonth AS (
   SELECT *, DATE_TRUNC(FECHA_EXTRACCION, MONTH) AS Month 
   FROM BillingColumnsAdjusted
@@ -63,26 +63,25 @@ FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2
   ON a.act_acct_cd=d.act_acct_cd and a.Month=d.Month
 )
 
-,OutstandingMasterTable AS (
-  SELECT a.*, OutstandingAccount,SoftDxAccount,HardDxAccount
+,OutstandingAndSoftDxMasterTable AS (
+  SELECT a.*, OutstandingAccount,SoftDxAccount
   FROM Sprint3Table a LEFT JOIN Funnel b ON a.Fixed_Account=b.BillingAccount AND a.Month=safe_cast(InitialMonth as string)
 )
----Este ajuste se hace para clasificar correctamente a usuarios con 90 días que np son clasificados como Outstanding o SoftDx
-,FunnelAdjustment AS (
-Select * except(OutstandingAccount, SoftDxAccount), 
-CASE WHEN HardDxAccount IS NOT NULL AND SoftDxAccount IS NULL THEN HardDxAccount
-ELSE SoftDxAccount END AS SoftDxAccount,
-CASE WHEN HardDxAccount IS NOT NULL AND OutstandingAccount IS NULL THEN HardDxAccount
-ELSE OutstandingAccount END AS OutstandingAccount
-FROM OutstandingMasterTable
-where HardDxAccount is not null and OutstandingAccount is null
+,HardDxMasterTable AS (
+  SELECT a.*,HardDxAccount
+  FROM OutstandingAndSoftDxMasterTable a LEFT JOIN Funnel b ON a.Fixed_Account=b.BillingAccount AND a.Month=safe_cast(DATE_ADD(InitialMonth, INTERVAL 3 MONTH) as string)
 )
-
-
+select * from HardDxMasterTable
+where E_FINALtechflag is null
+/*
 select distinct month, count(distinct OutstandingAccount),count(distinct SoftDxAccount),count(distinct HardDxAccount),
-FROM OutstandingMasterTable
+FROM HardDxMasterTable
 group by 1
 order by 1
-
+*/
 ##################################################### CSV File #################################################
-
+/*
+select distinct Month, E_FinalTechFlag, E_FMC_Segment,E_FMCType,E_TenureFinalFlag, 
+count(distinct fixed_account) as activebase,count(distinct OutstandingAccount) AS OutstandingAccount, 
+count(distinct SoftDxAccount) AS SoftDxAccount,count(distinct HardDxAccount) AS HardDxAccount FROM HardDxMasterTable
+Group by 1,2,3,4,5*/
