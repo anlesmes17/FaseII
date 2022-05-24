@@ -6,39 +6,21 @@
 WITH 
 
 MobileUsefulFields AS (
-  SELECT DISTINCT DATE_TRUNC(safe_cast(FECHA_PARQUE as date), Month) AS Month, /*Contrato, ID_CLIENTE,*/ NUM_IDENT, replace(ID_ABONADO,".","") as ID_ABONADO, AGRUPACION_COMUNIDAD
-  FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220513_cabletica_mobile_dna`
-  WHERE DES_SEGMENTO_CLIENTE <>"Empresas - Empresas" AND DES_SEGMENTO_CLIENTE <>"Empresas - Pymes" --AND (DES_USO ="MOVIL CONTRATO" OR DES_USO="DATOS MOVIL POSPAGO (UMTS/DATACARD)" OR DES_USO="DATOS MOVIL POSPAGO (UMTS/DATACARD)") AND (AGRUPACION_COMUNIDAD<>"NULL" AND AGRUPACION_COMUNIDAD<>"OTROS" AND AGRUPACION_COMUNIDAD<>"B2H")
+  SELECT DISTINCT DATE_TRUNC(safe_cast(FECHA_PARQUE as date), Month) AS Month,numContrato AS Contrato, ID_CLIENTE, NUM_IDENT, replace(ID_ABONADO,".","") as ID_ABONADO,safe_cast(replace(Renta,",",".") as float64) AS Renta, AGRUPACION_COMUNIDAD
+  FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220524_cabletica_mobile_DNA` 
+  WHERE DES_SEGMENTO_CLIENTE <>"Empresas - Empresas" AND DES_SEGMENTO_CLIENTE <>"Empresas - Pymes" 
 )
 
 ,CustomerBase_BOM AS(
-  SELECT DISTINCT  DATE_TRUNC(safe_cast(date_add(safe_cast(Month as date), INTERVAL 1 Month) as date), Month) AS B_Month, /*Contrato as B_Contrato, ID_CLIENTE as B_IdCliente,*/ NUM_IDENT as B_NumIdent, replace(ID_ABONADO,".","") as B_Mobile_Account, AGRUPACION_COMUNIDAD as B_Agrupacion
+  SELECT DISTINCT  DATE_TRUNC(safe_cast(date_add(safe_cast(Month as date), INTERVAL 1 Month) as date), Month) AS B_Month, Contrato as B_Contrato, ID_CLIENTE as B_IdCliente, NUM_IDENT as B_NumIdent, replace(ID_ABONADO,".","") as B_Mobile_Account,Renta AS B_Renta, AGRUPACION_COMUNIDAD as B_Agrupacion
   FROM MobileUsefulFields
 )
 
 ,CustomerBase_EOM AS(
-  SELECT DISTINCT DATE_TRUNC(safe_cast(safe_cast(Month as date) as date), Month) AS E_Month, /*Contrato as E_Contrato, ID_CLIENTE as E_IdCliente,*/ NUM_IDENT as E_NumIdent, replace(ID_ABONADO,".","") as E_Mobile_Account, AGRUPACION_COMUNIDAD as E_Agrupacion
+  SELECT DISTINCT DATE_TRUNC(safe_cast(safe_cast(Month as date) as date), Month) AS E_Month, Contrato as E_Contrato, ID_CLIENTE as E_IdCliente,NUM_IDENT as E_NumIdent, replace(ID_ABONADO,".","") as E_Mobile_Account,Renta AS E_Renta, AGRUPACION_COMUNIDAD as E_Agrupacion
   FROM MobileUsefulFields
 )
 
-
-/*
-MobileUsefulFields_BOM AS (
-    SELECT DISTINCT Date_Trunc(FECHA_PARQUE, month) AS Month, Contrato, ID_CLIENTE, NUM_IDENT, replace(ID_ABONADO,".","") as ID_ABONADO, AGRUPACION_COMUNIDAD
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220411_cabletica_fmc_febrero` 
-    WHERE DES_SEGMENTO_CLIENTE <>"Empresas - Empresas" AND DES_SEGMENTO_CLIENTE <>"Empresas - Pymes" --AND (DES_USO ="MOVIL CONTRATO" OR DES_USO="DATOS MOVIL POSPAGO (UMTS/DATACARD)" OR DES_USO="DATOS MOVIL POSPAGO (UMTS/DATACARD)") AND (AGRUPACION_COMUNIDAD<>"NULL" AND AGRUPACION_COMUNIDAD<>"OTROS" AND AGRUPACION_COMUNIDAD<>"B2H")
-)
-,MobileUsefulFields_EOM AS (
-    SELECT DISTINCT Date_Trunc(FECHA_PARQUE, month) AS Month,Contrato, ID_CLIENTE, NUM_IDENT, replace(ID_ABONADO,".","") as ID_ABONADO, AGRUPACION_COMUNIDAD
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220411_cabletica_fmc_marzo`
-    WHERE DES_SEGMENTO_CLIENTE <>"Empresas - Empresas" AND DES_SEGMENTO_CLIENTE <>"Empresas - Pymes" --AND (DES_USO ="MOVIL CONTRATO" OR DES_USO="DATOS MOVIL POSPAGO (UMTS/DATACARD)" OR DES_USO="DATOS MOVIL POSPAGO (UMTS/DATACARD)") AND (AGRUPACION_COMUNIDAD<>"NULL" AND AGRUPACION_COMUNIDAD<>"OTROS" AND AGRUPACION_COMUNIDAD<>"B2H")
-)
-,CR_Mobile_UsefulFields AS(
-SELECT  DISTINCT *
-from (SELECT * from MobileUsefulFields_BOM b 
-      UNION ALL
-      SELECT * from MobileUsefulFields_EOM e)
-)*/
 ,BaseRentaTenure AS (
     SELECT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.20220411_cabletica_tenure_renta_mobile`
 )
@@ -46,17 +28,6 @@ from (SELECT * from MobileUsefulFields_BOM b
     SELECT *,parse_date("%Y%m%d",concat(mes,"01")) as Month FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220516_cabletica_mov_oct_feb` 
 )
 
-
-/*
-,MobileCustomerBase_BOM AS(
-    SELECT DISTINCT  DATE_TRUNC(Month,Month) AS Month, ID_ABONADO AS B_Mobile_Account, Contrato as B_Contrato
-    from CR_Mobile_UsefulFields 
-)
-
-,MobileCustomerBase_EOM AS(
-    SELECT DISTINCT  DATE_TRUNC(DATE_SUB(Month, INTERVAL 1 MONTH),MONTH) AS Month, ID_ABONADO AS E_Mobile_Account, Contrato as E_Contrato
-    from CR_Mobile_UsefulFields 
-)*/
 ,MobileCustomerBase AS (
     SELECT DISTINCT
     CASE WHEN (B_Mobile_Account IS NOT NULL AND E_Mobile_Account IS NOT NULL) OR (B_Mobile_Account IS NOT NULL AND E_Mobile_Account IS NULL) THEN B_Month
@@ -67,21 +38,16 @@ from (SELECT * from MobileUsefulFields_BOM b
     END AS Mobile_Account,
     CASE WHEN B_Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS Mobile_ActiveBOM,
     CASE WHEN E_Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS Mobile_ActiveEOM,
-    /*B_Contrato,
-    E_Contrato*/
+    B_Contrato,E_Contrato, B_Renta, E_Renta
     FROM CustomerBase_BOM b FULL OUTER JOIN CustomerBase_EOM e ON B_Mobile_Account=E_Mobile_Account AND B_Month=E_Month
  
 )
-/*SELECT DISTINCT MOBILE_MONTH, COUNT(DISTINCT Mobile_Account) FROM MobileCustomerBase
---WHERE Mobile_ActiveBOM=1 AND Mobile_ActiveEOM=1
-GROUP BY MOBILE_Month*/
-
 
 ,TenureCustomerBase AS (
-    SELECT DISTINCT m.*, MIN(MESES_ANTIGUEDAD) AS MESES_ANTIGUEDAD, RENTA
+    SELECT DISTINCT m.*, MIN(MESES_ANTIGUEDAD) AS MESES_ANTIGUEDAD
     FROM MobileCustomerBase m LEFT JOIN BaseRentaTenure 
     ON  replace(NUM_ABONADO,".","")=Mobile_Account
-    GROUP BY 1,2,3,4/*,5,6,8*/,6
+    GROUP BY 1,2,3,4,5,6,7,8
 )
 
 ,FlagTenureCustomerBase AS (
@@ -94,41 +60,31 @@ FROM TenureCustomerBase
 
 ######################################## Main Movements ########################################################
 
-,MAINMOVEMENTS AS (
-    SELECT DISTINCT *,
-    CASE WHEN Mobile_ActiveBOM =1 AND Mobile_ActiveEOM =1 THEN "1.Maintain"
-    WHEN  Mobile_ActiveBOM =1 AND Mobile_ActiveEOM =0 THEN "2.Loss"
-    WHEN Mobile_ActiveBOM=0 AND Mobile_ActiveEOM=1 THEN "3.Gross Add/ rejoiner"
-    ELSE "3.NULL" END AS MobileMovementFlag,
+,MainMovements AS (
+    SELECT DISTINCT *,CASE 
+    WHEN Mobile_ActiveBOM =1 AND Mobile_ActiveEOM =1 AND(B_Renta=E_Renta) THEN "01.Maintain"
+    WHEN Mobile_ActiveBOM =1 AND Mobile_ActiveEOM =1 AND(B_Renta>E_Renta) THEN "02.Downspin"
+    WHEN Mobile_ActiveBOM =1 AND Mobile_ActiveEOM =1 AND(B_Renta<E_Renta) THEN "03.Upspin"
+    WHEN  Mobile_ActiveBOM =1 AND Mobile_ActiveEOM =0 THEN "04.Loss"
+    WHEN Mobile_ActiveBOM=0 AND Mobile_ActiveEOM=1 AND Meses_Antiguedad>1 THEN "05.Come Back To Life"
+    WHEN Mobile_ActiveBOM=0 AND Mobile_ActiveEOM=1 AND Meses_Antiguedad<=1 THEN "07.Incomplete Info"
+    WHEN (B_Renta IS NULL OR E_Renta IS NULL) THEN "03.Upspin"
+    ELSE NULL END AS MobileMovementFlag,
     FROM FlagTenureCustomerBase
 )
 
-
-----------------------------------------------Churners--------------------------------------------------------
-/*
---,MobileChurners AS (
-Select DISTINCT E_Mobile_Account AS Account_EOM, B_Mobile_Account As Account_BOM
-FROM CustomerBase_BOM b LEFT JOIN CustomerBase_EOM e ON B_Mobile_Account=E_Mobile_Account
-)
-,AllChurners AS (
-    SELECT Account_BOM, Account_EOM, CASE
-    WHEN Account_EOM IS NULL THEN "Churner"
-    ELSE "Non Churners" END AS MobileChurnFlag
-    FROM MobileChurners
-    WHERE Account_EOM IS NULL
+-------------------------------------------- Churners -------------------------------------------------------
+,MobileChurners AS (
+    SELECT * FROM MainMovements
+    WHERE Mobile_ActiveBOM=1 AND Mobile_ActiveEOM=0
 )
 
-
-,ChurnerClassification AS (
-SELECT DISTINCT Account_BOM,MobileChurnFlag, TIPO_BAJA
-FROM AllChurners m Left Join BaseMovimientos b ON Account_BOM= b.ID_ABONADO
-)*/
-,CustomerBaseWithChurn AS (
-    SELECT DISTINCT m.*, c.TIPO_BAJA
-    FROM MainMovements m LEFT JOIN BaseMovimientos c ON m.Mobile_Account=ID_ABONADO and c.Month=Mobile_Month
-    --WHERE Mobile_Month="2022-02-01"
+,ChurnersMovements AS (
+    SELECT M.*,TIPO_BAJA AS MobileChurnFlag FROM MobileChurners m LEFT JOIN BaseMovimientos
+    ON Mobile_Account=ID_Abonado AND Date_trunc(Mobile_Month,Month)=Date_TRUNC(Month,Month)
 )
-select distinct Mobile_Month, tipo_baja, count(distinct Mobile_Account)
-FROM CustomerBaseWithChurn
-group by 1,2
-order by 1,2
+
+--,CustomerBaseWithChurn AS (
+    SELECT DISTINCT m.*, c.MobileChurnFlag
+    FROM MainMovements m LEFT JOIN ChurnersMovements c ON m.Mobile_Account=c.Mobile_Account and c.Mobile_Month=m.Mobile_Month
+--)
