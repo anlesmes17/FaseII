@@ -122,7 +122,7 @@ ON safe_cast(Fixed_Account as string)=Mobile_Contrato_Adj AND Fixed_Month=Mobile
 ,CustomerBase_FMC_Tech_Flags AS(
  
  SELECT t.*,
-  round(ifnull(B_BILL_AMT/ContractsFix,0)) + ifnull(B_RENTA,0) AS TOTAL_B_MRC ,  round(ifnull(E_BILL_AMT/ContractsFix,0)) + ifnull(E_RENTA,0) AS TOTAL_E_MRC,
+  round(round(ifnull(B_BILL_AMT/ContractsFix,0)) + ifnull(B_RENTA,0),0) AS TOTAL_B_MRC ,  round(round(ifnull(E_BILL_AMT/ContractsFix,0)) + ifnull(E_RENTA,0),0) AS TOTAL_E_MRC,
  CASE  
  WHEN (B_FMC_Status = "Fixed Only" OR B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" )  AND (Mobile_ActiveBOM = 0 OR MOBILE_ACTIVEBOM IS NULL) AND B_MIX = "1P" THEN "Fixed 1P"
  WHEN (B_FMC_Status = "Fixed Only" OR B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" )  AND (Mobile_ActiveBOM = 0 OR MOBILE_ACTIVEBOM IS NULL) AND B_MIX = "2P" THEN "Fixed 2P"
