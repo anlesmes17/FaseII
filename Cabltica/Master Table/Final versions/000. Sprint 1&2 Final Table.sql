@@ -1,6 +1,6 @@
-CREATE OR REPLACE TABLE
+--CREATE OR REPLACE TABLE
 
-`gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Final_Table_DashboardInput_v2` AS
+--`gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Final_Table_DashboardInput_v2` AS
 
 WITH 
 
@@ -122,7 +122,7 @@ ON safe_cast(Fixed_Account as string)=Mobile_Contrato_Adj AND Fixed_Month=Mobile
 ,CustomerBase_FMC_Tech_Flags AS(
  
  SELECT t.*,
-  round(ifnull(B_BILL_AMT/ContractsFix,0) + B_RENTA) AS TOTAL_B_MRC ,  round(ifnull(E_BILL_AMT/ContractsFix,0) + E_RENTA) AS TOTAL_E_MRC,
+  round(ifnull(B_BILL_AMT/ContractsFix,0)) + ifnull(B_RENTA,0) AS TOTAL_B_MRC ,  round(ifnull(E_BILL_AMT/ContractsFix,0)) + ifnull(E_RENTA,0) AS TOTAL_E_MRC,
  CASE  
  WHEN (B_FMC_Status = "Fixed Only" OR B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" )  AND (Mobile_ActiveBOM = 0 OR MOBILE_ACTIVEBOM IS NULL) AND B_MIX = "1P" THEN "Fixed 1P"
  WHEN (B_FMC_Status = "Fixed Only" OR B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" )  AND (Mobile_ActiveBOM = 0 OR MOBILE_ACTIVEBOM IS NULL) AND B_MIX = "2P" THEN "Fixed 2P"
@@ -236,5 +236,5 @@ END AS Waterfall_Flag
 FROM RejoinerColumn f
 )
 
-SELECT * FROM FullCustomersBase_Flags_Waterfall
---WHERE Month='2022-02-01'
+SELECT Distinct * FROM FullCustomersBase_Flags_Waterfall
+WHERE Month='2022-02-01' 
