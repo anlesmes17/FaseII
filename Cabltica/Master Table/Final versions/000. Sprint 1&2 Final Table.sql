@@ -5,7 +5,6 @@ CREATE OR REPLACE TABLE
 WITH 
 
 
-
 Fixed_Base AS(
   SELECT DISTINCT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Fixed_DashboardInput_v2`
 
@@ -20,34 +19,34 @@ Fixed_Base AS(
 
 --------------------------------------------- FEB ------------------------------------------------------------
 
-,EMAIL_FEB AS (
+,EMAIL_BOM AS (
     SELECT DISTINCT FECHA_PARQUE,replace(ID_ABONADO,".","") as ID_ABONADO, act_acct_cd, NOM_EMAIL AS B_EMAIL
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220411_cabletica_fmc_febrero`
-    INNER JOIN `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-02-16_FINAL_HISTORIC_CRM_FILE_2021_D`
-    ON FECHA_EXTRACCION=FECHA_PARQUE AND NOM_EMAIL=ACT_CONTACT_MAIL_1
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220524_cabletica_mobile_DNA` 
+    INNER JOIN `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2021_mar_2022_D`
+    ON safe_cast(FECHA_EXTRACCION as string)=FECHA_PARQUE AND NOM_EMAIL=ACT_CONTACT_MAIL_1
      WHERE DES_SEGMENTO_CLIENTE <>"Empresas - Empresas" AND DES_SEGMENTO_CLIENTE <>"Empresas - Pymes" 
      AND NOM_EMAIL <>"NOTIENE@GMAIL.COM" AND NOM_EMAIL<> "NOREPORTA@CABLETICA.COM" AND NOM_EMAIL<>"NOREPORTACORREO@CABLETICA.COM"
 )
 
-,NEARFMC_MOBILE_FEB AS (
+,NEARFMC_MOBILE_BOM AS (
     SELECT DISTINCT a.*,b.act_acct_cd AS B_CONTR, b.B_EMAIL
-    FROM Mobile_Base a LEFT JOIN EMAIL_FEB b 
-    ON ID_ABONADO=Mobile_Account AND FECHA_PARQUE=Mobile_Month
+    FROM Mobile_Base a LEFT JOIN EMAIL_BOM b 
+    ON ID_ABONADO=Mobile_Account AND safe_cast(FECHA_PARQUE as string)=safe_cast(Mobile_Month as string)
 )
 ------------------------------------------------------------------- Mar -------------------------------------------------------
-,EMAIL_MAR AS (
+,EMAIL_EOM AS (
     SELECT DISTINCT FECHA_PARQUE,replace(ID_ABONADO,".","") as ID_ABONADO, act_acct_cd, NOM_EMAIL AS E_EMAIL
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220411_cabletica_fmc_marzo`
-    INNER JOIN `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220405_CRM_march_sample`
-    ON FECHA_EXTRACCION=FECHA_PARQUE AND NOM_EMAIL=ACT_CONTACT_MAIL_1
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220524_cabletica_mobile_DNA` 
+    INNER JOIN `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2021_mar_2022_D`
+    ON safe_cast(FECHA_EXTRACCION as string)=FECHA_PARQUE AND NOM_EMAIL=ACT_CONTACT_MAIL_1
      WHERE DES_SEGMENTO_CLIENTE <>"Empresas - Empresas" AND DES_SEGMENTO_CLIENTE <>"Empresas - Pymes" 
      AND NOM_EMAIL <>"NOTIENE@GMAIL.COM" AND NOM_EMAIL<> "NOREPORTA@CABLETICA.COM" AND NOM_EMAIL<>"NOREPORTACORREO@CABLETICA.COM"
 )
 
-,NEARFMC_MOBILE_MAR AS (
+,NEARFMC_MOBILE_EOM AS (
     SELECT DISTINCT a.*,b.act_acct_cd AS E_CONTR, E_EMAIL
-    FROM NEARFMC_MOBILE_FEB a LEFT JOIN EMAIL_MAR b 
-    ON ID_ABONADO=Mobile_Account AND DATE_SUB(FECHA_PARQUE, INTERVAL 1 Month)=Mobile_Month
+    FROM NEARFMC_MOBILE_BOM a LEFT JOIN EMAIL_EOM b 
+    ON ID_ABONADO=Mobile_Account AND DATE_SUB(safe_cast(FECHA_PARQUE as date), INTERVAL 1 Month)=Mobile_Month
     
 )
 ,CONTRATO_ADJ AS (
@@ -60,7 +59,7 @@ Fixed_Base AS(
     WHEN E_CONTR IS NOT NULL THEN safe_cast(E_CONTR as string)
     ELSE NULL
     END AS E_Mobile_Contrato_Adj
-    FROM NEARFMC_MOBILE_MAR a
+    FROM NEARFMC_MOBILE_EOM a
 )
 
 ,MobilePreliminaryBase AS (
@@ -123,7 +122,7 @@ ON safe_cast(Fixed_Account as string)=Mobile_Contrato_Adj AND Fixed_Month=Mobile
 ,CustomerBase_FMC_Tech_Flags AS(
  
  SELECT t.*,
-  round(ifnull(B_BILL_AMT/ContractsFix,0) + ifnull(ROUND(SAFE_CAST(replace(RENTA,".","") AS NUMERIC),0),0),0) AS TOTAL_B_MRC ,  round(ifnull(E_BILL_AMT/ContractsFix,0) + ifnull(ROUND(SAFE_CAST(replace(RENTA,".","") AS NUMERIC),0),0),0) AS TOTAL_E_MRC,
+  round(ifnull(B_BILL_AMT/ContractsFix,0) + B_RENTA) AS TOTAL_B_MRC ,  round(ifnull(E_BILL_AMT/ContractsFix,0) + E_RENTA) AS TOTAL_E_MRC,
  CASE  
  WHEN (B_FMC_Status = "Fixed Only" OR B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" )  AND (Mobile_ActiveBOM = 0 OR MOBILE_ACTIVEBOM IS NULL) AND B_MIX = "1P" THEN "Fixed 1P"
  WHEN (B_FMC_Status = "Fixed Only" OR B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" )  AND (Mobile_ActiveBOM = 0 OR MOBILE_ACTIVEBOM IS NULL) AND B_MIX = "2P" THEN "Fixed 2P"
@@ -192,11 +191,10 @@ FROM CustomerBase_FMC_Tech_Flags c
 
 ,RejoinerColumn AS (
   SELECT DISTINCT  f.*
-,CASE WHEN Fixed_RejoinerFeb = 1 AND E_FMC_Segment = "P1_Fixed" THEN "Fixed Rejoiner"
-WHEN (Fixed_RejoinerFeb = 1) OR ((Fixed_RejoinerFeb = 1) and  (E_FMCType = "Soft FMC" OR E_FMCType = "Near FMC")) THEN "FMC Rejoiner"
+,CASE WHEN Fixed_Rejoiner = 1 AND E_FMC_Segment = "P1_Fixed" THEN "Fixed Rejoiner"
+WHEN (Fixed_Rejoiner = 1) OR ((Fixed_Rejoiner = 1) and  (E_FMCType = "Soft FMC" OR E_FMCType = "Near FMC")) THEN "FMC Rejoiner"
 END AS Rejoiner_FinalFlag,
 FROM CustomerBase_FMCSegments_ChurnFlag f
-WHERE Month = '2022-02-01' 
 )
 
 
@@ -206,7 +204,6 @@ WHERE Month = '2022-02-01'
 
 
 ,FullCustomersBase_Flags_Waterfall AS(
-
 SELECT DISTINCT f.* except(E_FMC_Segment),
 CASE WHEN (B_FMCTYPE="Fixed 1P" OR B_FMCType="Fixed 2P" OR B_FMCType="Fixed 3P" ) AND E_FMCType="Mobile Only" AND FinalChurnFlag<>"Churn Exception"
 AND FinalChurnFlag<>"Customer Gap" AND FinalChurnFlag<>"Fixed Churner" THEN "Customer Gap"
@@ -240,4 +237,4 @@ FROM RejoinerColumn f
 )
 
 SELECT * FROM FullCustomersBase_Flags_Waterfall
-WHERE Month='2022-02-01'
+--WHERE Month='2022-02-01'
