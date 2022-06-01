@@ -1,0 +1,133 @@
+WITH
+
+Sprint3Table AS (
+SELECT DISTINCT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Final_Sprint3_Table_DashboardInput_v2`
+)
+
+########################################### Involuntary Funnel #######################################################
+
+----------------------------------- Billing Columns Fix --------------------------------------
+
+
+---Trae la fecha de oldest unpaid bill preliminar usando la última fecha de pago
+,InitialAdjustment AS (
+SELECT*, DATE_TRUNC(DATE_ADD(LST_PYM_DT, INTERVAL 1 MONTH),MONTH) AS OLDEST_UNPAID_BILL_ADJ
+FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2021_mar_2022_D`
+)
+
+---Ajuste de oldest unpaid bill para usuarios que están al dia
+,SecondAdjustment AS (
+  SELECT *, CASE
+  WHEN DATE_TRUNC(LST_PYM_DT,MONTH)=DATE_TRUNC(FECHA_EXTRACCION,MONTH) THEN NULL
+  ELSE OLDEST_UNPAID_BILL_ADJ END AS OLDEST_UNPAID_BILL_FINAL
+  FROM InitialAdjustment
+)
+
+---Calculo del fi outst age nuevo
+,BillingColumns AS (
+  SELECT *, DATE_DIFF(FECHA_EXTRACCION, OLDEST_UNPAID_BILL_FINAL, DAY) AS FI_OUTST_AGE_FINAL,
+  FROM SecondAdjustment
+)
+
+,BillingColumnsAdjusted AS(
+  SELECT *, first_value (fi_outst_age_final) over (partition by act_acct_cd, date_trunc(FECHA_EXTRACCION,MONTH) order by FECHA_EXTRACCION) as first_outst_age
+  FROM BillingColumns
+)
+
+------------------------------------ Cohort Approach ----------------------------------------
+
+------------------------------------ Billing Accounts ---------------------------------------
+,BillingAccounts AS(
+  SELECT DISTINCT Date_Trunc(FI_BILL_DT_M0,MONTH) AS BillingMonth, FI_BILL_DT_M0 AS BillDate, act_acct_cd AS BillCustomers
+  FROM BillingColumnsAdjusted 
+  WHERE DATE_TRUNC(FI_BILL_DT_M0,MONTH)=DATE_TRUNC(FECHA_EXTRACCION,MONTH) AND (FI_OUTST_AGE_FINAL<=90 OR FI_OUTST_AGE_FINAL IS NULL) 
+)
+
+,BILLING_FLAG AS(
+  SELECT DISTINCT f.*, BillingMonth,
+  CASE WHEN BillCustomers IS NOT NULL THEN BillCustomers
+  ELSE NULL END AS Bill_Flag
+  FROM Sprint3Table f LEFT JOIN BillingAccounts b on safe_cast(b.BillCustomers as string)=safe_cast(f.Final_Account as string)
+  AND Month=safe_cast(BillingMonth as string)
+)
+
+---------------------------------------------Day1-------------------------------------------------
+,DAYONE_CUSTOMERS AS(
+  SELECT DISTINCT date_trunc(OLDEST_UNPAID_BILL_DT,MONTH) AS OverdueMonth,
+  DATE_TRUNC(FECHA_EXTRACCION, MONTH) AS day1_month, act_acct_cd as day1_customers 
+  FROM BillingColumnsAdjusted
+  WHERE FI_OUTST_AGE_FINAL>=21
+)
+
+,DAYONE_FLAG AS(
+  SELECT DISTINCT f.*, OverdueMonth as Day1_OvMonth,
+  CASE WHEN day1_customers is not null then day1_customers
+  else null end as Day1_Flag
+  FROM Billing_Flag f LEFT JOIN DAYONE_CUSTOMERS b on safe_cast(b.day1_customers as string)=safe_cast(f.Final_Account as string)
+   AND Month=safe_cast(b.day1_month as string)
+)
+
+----------------------------------------------SoftDx--------------------------------------------------------
+,SOFT_DX_CUSTOMERS AS(
+  SELECT DISTINCT date_trunc(OLDEST_UNPAID_BILL_DT,MONTH) AS OverdueMonth,
+  date_trunc(FECHA_EXTRACCION,MONTH) as SoftDx_month, act_acct_cd as soft_dx,*
+  FROM BillingColumnsAdjusted
+  WHERE Oldest_unpaid_bill_dt is not null 
+  AND FI_OUTST_AGE_FINAL>=27
+)
+
+,SOFT_DX_FLAG AS(
+  SELECT DISTINCT f.*, OverdueMonth as SoftDxOv_month,
+  CASE WHEN soft_dx is not null then soft_dx
+  else null end as SoftDx_Flag
+  FROM DAYONE_Flag f LEFT JOIN SOFT_DX_CUSTOMERS s on safe_cast(s.soft_dx as string)=safe_cast(f.Final_Account as string)
+  AND Month=safe_cast(s.softdx_month as string)
+)
+
+---------------------------------------------------Backlog subject to Dx------------------------------------------
+,BACKLOG_SUBJECT_TO_DX AS(
+  SELECT DISTINCT date_trunc(Oldest_unpaid_bill_dt,Month) as OverdueMonth,
+  date_trunc(FECHA_EXTRACCION,MONTH) AS backlog_month, act_acct_cd as backlog_subjectdx
+  FROM BillingColumnsAdjusted
+  WHERE Oldest_unpaid_bill_dt is not null and FECHA_EXTRACCION=date_trunc(FECHA_EXTRACCION,MONTH)
+  AND (FI_OUTST_AGE_FINAL>=63 and fi_outst_age<=89)
+)
+
+,Backlog_Dx_Flag AS(
+SELECT DISTINCT f.*, OverdueMonth as OvBacklogMonth, 
+CASE WHEN backlog_subjectdx is not null then backlog_subjectdx
+else null end as backlog_flag
+FROM soft_dx_flag f LEFT JOIN backlog_subject_to_dx b on safe_cast(b.backlog_subjectdx as string)=safe_cast(f.Final_Account as string)
+AND Month=safe_cast(b.backlog_month as string)
+)
+
+-----------------------------------------------------Hard Dx-----------------------------------------------------------
+,HARD_DX_CUSTOMERS AS(
+  SELECT DISTINCT date_trunc(Oldest_unpaid_bill_dt,Month) as OverdueMonth,
+  date_trunc(FECHA_EXTRACCION,MONTH) as harddx_month, act_acct_cd as hard_dx
+  FROM BillingColumnsAdjusted
+  WHERE oldest_unpaid_bill_dt is not null
+  AND first_outst_age<=90 AND fi_outst_age>=90
+)
+
+,Hard_Dx_Flag AS(
+  SELECT DISTINCT f.*, OverdueMonth as OvHardDxMonth,
+  CASE WHEN hard_dx is not null then hard_dx else null end as HardD_Flag
+  FROM Backlog_Dx_Flag f LEFT JOIN Hard_Dx_Customers h ON safe_cast(h.hard_dx as string)=safe_cast(f.Final_Account as string)
+  AND f.Month=safe_cast(h.harddx_month as string)
+)
+
+
+---------------------------------------------------Results Query-----------------------------------------------------------------------
+
+select Month, 
+B_FMC_Segment, B_FMCType, B_FinalTechFlag, E_FMC_Segment, E_FMCType, E_FinalTechFlag,
+from Hard_Dx_Flag
+Group by 1,2,3,4,5,6,7
+Order by 1,2,3,4,5,6,7
+
+/*select *
+FROM HARD_DX_Flag
+where softd_flag is not null and month = date('2022-02-01') and b_fmc_segment = 'P1_Mobile'
+-- B_final_tech_flag = 'Wireless'
+--group by 1,2*/
