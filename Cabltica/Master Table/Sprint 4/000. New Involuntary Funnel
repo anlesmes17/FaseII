@@ -40,80 +40,84 @@ FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2
 ,BillingAccounts AS(
   SELECT DISTINCT Date_Trunc(FI_BILL_DT_M0,MONTH) AS BillingMonth, FI_BILL_DT_M0 AS BillDate, act_acct_cd AS BillCustomers
   FROM BillingColumnsAdjusted 
-  WHERE DATE_TRUNC(FI_BILL_DT_M0,MONTH)=DATE_TRUNC(FECHA_EXTRACCION,MONTH) AND (FI_OUTST_AGE_FINAL<=90 OR FI_OUTST_AGE_FINAL IS NULL) 
+  WHERE FI_BILL_DT_M0 IS NOT NULL AND (FI_OUTST_AGE_FINAL<=90 OR FI_OUTST_AGE_FINAL IS NULL) 
 )
 
 ,BILLING_FLAG AS(
   SELECT DISTINCT f.*, BillingMonth,
   CASE WHEN BillCustomers IS NOT NULL THEN BillCustomers
   ELSE NULL END AS Bill_Flag
-  FROM Sprint3Table f LEFT JOIN BillingAccounts b on safe_cast(b.BillCustomers as string)=safe_cast(f.Final_Account as string)
+  FROM Sprint3Table f LEFT JOIN BillingAccounts b on safe_cast(b.BillCustomers as string)=safe_cast(f.Fixed_Account as string)
   AND Month=safe_cast(BillingMonth as string)
 )
 
 ---------------------------------------------Day1-------------------------------------------------
 ,DAYONE_CUSTOMERS AS(
-  SELECT DISTINCT date_trunc(OLDEST_UNPAID_BILL_DT,MONTH) AS OverdueMonth,
+  SELECT DISTINCT date_trunc(OLDEST_UNPAID_BILL_FINAL,MONTH) AS OverdueMonth,
   DATE_TRUNC(FECHA_EXTRACCION, MONTH) AS day1_month, act_acct_cd as day1_customers 
   FROM BillingColumnsAdjusted
-  WHERE FI_OUTST_AGE_FINAL>=21
+  WHERE FI_OUTST_AGE_FINAL between 21 and 25
 )
 
 ,DAYONE_FLAG AS(
   SELECT DISTINCT f.*, OverdueMonth as Day1_OvMonth,
   CASE WHEN day1_customers is not null then day1_customers
-  else null end as Day1_Flag
-  FROM Billing_Flag f LEFT JOIN DAYONE_CUSTOMERS b on safe_cast(b.day1_customers as string)=safe_cast(f.Final_Account as string)
+  else null end as Day1_Flag,
+  case when day1_customers is not null then 1 else 0 end as Day1_Category
+  FROM Billing_Flag f LEFT JOIN DAYONE_CUSTOMERS b on safe_cast(b.day1_customers as string)=safe_cast(f.Fixed_Account as string)
    AND Month=safe_cast(b.day1_month as string)
 )
 
 ----------------------------------------------SoftDx--------------------------------------------------------
 ,SOFT_DX_CUSTOMERS AS(
-  SELECT DISTINCT date_trunc(OLDEST_UNPAID_BILL_DT,MONTH) AS OverdueMonth,
+  SELECT DISTINCT date_trunc(OLDEST_UNPAID_BILL_FINAL,MONTH) AS OverdueMonth,
   date_trunc(FECHA_EXTRACCION,MONTH) as SoftDx_month, act_acct_cd as soft_dx,*
   FROM BillingColumnsAdjusted
-  WHERE Oldest_unpaid_bill_dt is not null 
-  AND FI_OUTST_AGE_FINAL>=27
+  WHERE --OLDEST_UNPAID_BILL_FINAL is not null AND 
+  FI_OUTST_AGE_FINAL between 27 and 32
 )
 
 ,SOFT_DX_FLAG AS(
   SELECT DISTINCT f.*, OverdueMonth as SoftDxOv_month,
   CASE WHEN soft_dx is not null then soft_dx
-  else null end as SoftDx_Flag
-  FROM DAYONE_Flag f LEFT JOIN SOFT_DX_CUSTOMERS s on safe_cast(s.soft_dx as string)=safe_cast(f.Final_Account as string)
+  else null end as SoftD_Flag,
+  case when soft_dx is not null then 1 else 0 end as SoftD_Category
+  FROM DAYONE_Flag f LEFT JOIN SOFT_DX_CUSTOMERS s on safe_cast(s.soft_dx as string)=safe_cast(f.Fixed_Account as string)
   AND Month=safe_cast(s.softdx_month as string)
 )
 
 ---------------------------------------------------Backlog subject to Dx------------------------------------------
 ,BACKLOG_SUBJECT_TO_DX AS(
-  SELECT DISTINCT date_trunc(Oldest_unpaid_bill_dt,Month) as OverdueMonth,
+  SELECT DISTINCT date_trunc(OLDEST_UNPAID_BILL_FINAL,Month) as OverdueMonth,
   date_trunc(FECHA_EXTRACCION,MONTH) AS backlog_month, act_acct_cd as backlog_subjectdx
   FROM BillingColumnsAdjusted
-  WHERE Oldest_unpaid_bill_dt is not null and FECHA_EXTRACCION=date_trunc(FECHA_EXTRACCION,MONTH)
-  AND (FI_OUTST_AGE_FINAL>=63 and fi_outst_age<=89)
+  WHERE --OLDEST_UNPAID_BILL_FINAL is not null --and FECHA_EXTRACCION=date_trunc(FECHA_EXTRACCION,MONTH) AND 
+  (FI_OUTST_AGE_FINAL>=63 and fi_outst_age<=89)
 )
 
 ,Backlog_Dx_Flag AS(
 SELECT DISTINCT f.*, OverdueMonth as OvBacklogMonth, 
 CASE WHEN backlog_subjectdx is not null then backlog_subjectdx
-else null end as backlog_flag
-FROM soft_dx_flag f LEFT JOIN backlog_subject_to_dx b on safe_cast(b.backlog_subjectdx as string)=safe_cast(f.Final_Account as string)
+else null end as backlog_flag,
+case when Backlog_subjectdx is not null then 1 else 0 end as Backlog_category
+FROM soft_dx_flag f LEFT JOIN backlog_subject_to_dx b on safe_cast(b.backlog_subjectdx as string)=safe_cast(f.Fixed_Account as string)
 AND Month=safe_cast(b.backlog_month as string)
 )
 
 -----------------------------------------------------Hard Dx-----------------------------------------------------------
 ,HARD_DX_CUSTOMERS AS(
-  SELECT DISTINCT date_trunc(Oldest_unpaid_bill_dt,Month) as OverdueMonth,
+  SELECT DISTINCT date_trunc(OLDEST_UNPAID_BILL_FINAL,Month) as OverdueMonth,
   date_trunc(FECHA_EXTRACCION,MONTH) as harddx_month, act_acct_cd as hard_dx
   FROM BillingColumnsAdjusted
-  WHERE oldest_unpaid_bill_dt is not null
-  AND first_outst_age<=90 AND fi_outst_age>=90
+  WHERE --OLDEST_UNPAID_BILL_FINAL is not null AND 
+  /*first_outst_age<=90 AND*/ (fi_outst_age between 90 and 95)
 )
 
 ,Hard_Dx_Flag AS(
   SELECT DISTINCT f.*, OverdueMonth as OvHardDxMonth,
-  CASE WHEN hard_dx is not null then hard_dx else null end as HardD_Flag
-  FROM Backlog_Dx_Flag f LEFT JOIN Hard_Dx_Customers h ON safe_cast(h.hard_dx as string)=safe_cast(f.Final_Account as string)
+  CASE WHEN hard_dx is not null then hard_dx else null end as HardD_Flag,
+  case when hard_dx is not null then 1 else 0 end as HardD_category
+  FROM Backlog_Dx_Flag f LEFT JOIN Hard_Dx_Customers h ON safe_cast(h.hard_dx as string)=safe_cast(f.Fixed_Account as string)
   AND f.Month=safe_cast(h.harddx_month as string)
 )
 
@@ -121,10 +125,19 @@ AND Month=safe_cast(b.backlog_month as string)
 ---------------------------------------------------Results Query-----------------------------------------------------------------------
 
 select Month, 
-B_FMC_Segment, B_FMCType, B_FinalTechFlag, E_FMC_Segment, E_FMCType, E_FinalTechFlag,
+B_FMC_Segment, B_FMCType, B_FinalTechFlag, E_FMC_Segment, E_FMCType, E_FinalTechFlag, Day1_category, SoftD_Category, Backlog_category, HardD_Category,
+count(distinct fixed_account) as ActiveBase, count(distinct BB_RGU_BOM) as BB_RGUs_BOM,
+count(distinct TV_RGU_BOM) as TV_RGUs_BOM, count(distinct VO_RGU_BOM) as VO_RGUs_BOM,
+count(distinct BB_RGU_EOM) as BB_RGUs_EOM, count(distinct TV_RGU_EOM) as TV_RGUs_EOM,
+count(distinct VO_RGU_EOM) as VO_RGUs_EOM,
+count(distinct day1_flag) Day1, count(distinct softd_flag) as SoftDx, count(distinct backlog_flag) as Backlog, count(distinct hardd_flag) as HardDx
 from Hard_Dx_Flag
-Group by 1,2,3,4,5,6,7
-Order by 1,2,3,4,5,6,7
+Group by 1,2,3,4,5,6,7,8,9,10,11
+Order by 1,2,3,4,5,6,7,8,9,10,11
+
+
+
+
 
 /*select *
 FROM HARD_DX_Flag
