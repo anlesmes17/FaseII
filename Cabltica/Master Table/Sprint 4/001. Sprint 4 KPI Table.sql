@@ -163,23 +163,18 @@ TIQUETES_GR AS (
 
 --------------------------------------------------------------- Customers With Failed Visits ------------------------------------------------------------------
 
-,Failed AS (
-    SELECT DISTINCT TIMESTAMP_TRUNC(FECHA_APERTURA, MONTH) AS MONTH
+,FailedInstallations AS (
+    SELECT DISTINCT TIMESTAMP_TRUNC(FECHA_APERTURA, MONTH) AS InstallationMonth, Contrato AS ContratoInstallations
     FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-12_CR_TIQUETES_AVERIAS_2021-01_A_2022-02_D`
     WHERE
         ESTADO IN ('CANCELADA','ANULADA')
         AND TIPO_ATENCION = "TR" -- con esto marcamos que es un truck roll
-    GROUP BY 1
-)
-
-,TotalFailedInstallations AS (
-    SELECT distinct DATE_TRUNC(FECHA_EXTRACCION,MONTH) AS InstallationMonth, ACT_ACCT_CD AS ContratoInstallations
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-02-16_FINAL_HISTORIC_CRM_FILE_2021_D` AS d
     GROUP BY 1,2
-    ORDER BY 1
 )
 
 --,FailedInstallationsMasterTable AS(
   SELECT DISTINCT f.*, ContratoInstallations AS FailedInstallations
-  FROM MultipleTicketsMasterTable f LEFT JOIN TotalFailedInstallations ON safe_cast(RIGHT(CONCAT('0000000000',ContratoInstallations),10) as string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string) AND Month=safe_cast(InstallationMonth as string)
+  FROM MultipleTicketsMasterTable f LEFT JOIN FailedInstallations ON safe_cast(RIGHT(CONCAT('0000000000',ContratoInstallations),10) as string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string) AND f.Month=safe_cast(InstallationMonth as string)
 --)
+
+------------------------------------------------------------------- Tech Tickets ---------------------------------------------------------------------
