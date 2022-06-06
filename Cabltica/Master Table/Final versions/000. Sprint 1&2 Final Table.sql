@@ -193,6 +193,7 @@ FROM CustomerBase_FMC_Tech_Flags c
   SELECT DISTINCT  f.*
 ,CASE WHEN Fixed_Rejoiner = 1 AND E_FMC_Segment = "P1_Fixed" THEN "Fixed Rejoiner"
 WHEN (Fixed_Rejoiner = 1) OR ((Fixed_Rejoiner = 1) and  (E_FMCType = "Soft FMC" OR E_FMCType = "Near FMC")) THEN "FMC Rejoiner"
+WHEN Mobile_Rejoiner IS NOT NULL AND E_FMC_Segment = "P1_Mobile" THEN "Mobile Rejoiner"
 END AS Rejoiner_FinalFlag,
 FROM CustomerBase_FMCSegments_ChurnFlag f
 )
