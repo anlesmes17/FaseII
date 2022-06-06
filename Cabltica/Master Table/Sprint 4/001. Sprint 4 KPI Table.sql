@@ -172,9 +172,26 @@ TIQUETES_GR AS (
     GROUP BY 1,2
 )
 
---,FailedInstallationsMasterTable AS(
+,FailedInstallationsMasterTable AS(
   SELECT DISTINCT f.*, ContratoInstallations AS FailedInstallations
   FROM MultipleTicketsMasterTable f LEFT JOIN FailedInstallations ON safe_cast(RIGHT(CONCAT('0000000000',ContratoInstallations),10) as string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string) AND f.Month=safe_cast(InstallationMonth as string)
+)
+
+---------------------------------------------------------------------- Tech Tickets --------------------------------------------------------------------------
+
+,NumTiquetes AS(
+    SELECT RIGHT(CONCAT('0000000000',CONTRATO),10) AS CONTRATO, Date_trunc(FECHA_APERTURA, Month) AS TiquetMonth, Count(Distinct TIQUETE) AS NumTechTickets
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-01-19_CR_TIQUETES_AVERIAS_2021-01_A_2021-11_D`
+    WHERE 
+        CLASE IS NOT NULL AND MOTIVO IS NOT NULL AND CONTRATO IS NOT NULL
+        AND ESTADO <> "ANULADA"
+        AND MOTIVO <> "LLAMADA  CONSULTA DESINSTALACION"
+    GROUP BY 1,2
+)
+
+--,NumTiquetesMasterTable AS(
+    SELECT F.*,NumTechTickets 
+    FROM failedinstallationsmastertable f LEFT JOIN NumTiquetes ON CONTRATO=RIGHT(CONCAT('0000000000',Final_Account),10) AND safe_cast(TiquetMonth as string)=Month
 --)
 
-------------------------------------------------------------------- Tech Tickets ---------------------------------------------------------------------
+
