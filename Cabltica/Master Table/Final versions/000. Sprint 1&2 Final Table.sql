@@ -22,7 +22,7 @@ Fixed_Base AS(
 ,EMAIL_BOM AS (
     SELECT DISTINCT FECHA_PARQUE,replace(ID_ABONADO,".","") as ID_ABONADO, act_acct_cd, NOM_EMAIL AS B_EMAIL
     FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220524_cabletica_mobile_DNA` 
-    INNER JOIN `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-07_Historical_CRM_Ene_2021_May_2022`
+    INNER JOIN `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
     ON safe_cast(FECHA_EXTRACCION as string)=FECHA_PARQUE AND NOM_EMAIL=ACT_CONTACT_MAIL_1
      WHERE DES_SEGMENTO_CLIENTE <>"Empresas - Empresas" AND DES_SEGMENTO_CLIENTE <>"Empresas - Pymes" 
      AND NOM_EMAIL <>"NOTIENE@GMAIL.COM" AND NOM_EMAIL<> "NOREPORTA@CABLETICA.COM" AND NOM_EMAIL<>"NOREPORTACORREO@CABLETICA.COM"
@@ -37,7 +37,7 @@ Fixed_Base AS(
 ,EMAIL_EOM AS (
     SELECT DISTINCT FECHA_PARQUE,replace(ID_ABONADO,".","") as ID_ABONADO, act_acct_cd, NOM_EMAIL AS E_EMAIL
     FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220524_cabletica_mobile_DNA` 
-    INNER JOIN `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-07_Historical_CRM_Ene_2021_May_2022`
+    INNER JOIN `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
     ON safe_cast(FECHA_EXTRACCION as string)=FECHA_PARQUE AND NOM_EMAIL=ACT_CONTACT_MAIL_1
      WHERE DES_SEGMENTO_CLIENTE <>"Empresas - Empresas" AND DES_SEGMENTO_CLIENTE <>"Empresas - Pymes" 
      AND NOM_EMAIL <>"NOTIENE@GMAIL.COM" AND NOM_EMAIL<> "NOREPORTA@CABLETICA.COM" AND NOM_EMAIL<>"NOREPORTACORREO@CABLETICA.COM"
