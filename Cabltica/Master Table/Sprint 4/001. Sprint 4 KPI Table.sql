@@ -10,7 +10,7 @@ SELECT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_
 
 ,LLAMADAS AS(
     SELECT RIGHT(CONCAT('0000000000',CONTRATO),10) AS CONTRATO, FECHA_APERTURA AS FECHA_LLAMADA, DATE_TRUNC(FECHA_APERTURA,MONTH) AS MES_LLAMADA, TIQUETE_ID
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-01-12_CR_TIQUETES_SERVICIO_2021-01_A_2021-11_D`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220602_CR_TIQUETES_SERVICIO_2021-01_A_2022-05_D`
     WHERE 
         CLASE IS NOT NULL AND MOTIVO IS NOT NULL AND CONTRATO IS NOT NULL
         AND ESTADO <> "ANULADA"
@@ -19,52 +19,43 @@ SELECT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_
 )
 
 ,LLAMADAS_MES AS (
-    SELECT CONTRATO, MES_LLAMADA, COUNT(DISTINCT TIQUETE_ID) AS N_LLAMADAS_MES, MAX(FECHA_LLAMADA) AS MAX_APERTURA, DATE_SUB(MAX(FECHA_LLAMADA), INTERVAL 60 DAY) AS MAX_APERTURA_60D
+    SELECT CONTRATO, MES_LLAMADA, COUNT(DISTINCT TIQUETE_ID) AS N_LLAMADAS_MES, MAX(FECHA_LLAMADA) AS MAX_APERTURA
     FROM LLAMADAS
     GROUP BY 1,2
     ORDER BY 2, 3 DESC
 )
-
--- lo que hacemos aquí es buscar por cada mes los usuarios que tengan llamadas en los 60 días anteriores
-,LLAMADAS_60D AS (
-    SELECT m.*,l.FECHA_LLAMADA AS FECHA_LLAMADA_ANT, l.TIQUETE_ID
-    FROM LLAMADAS_MES AS m
-    LEFT JOIN LLAMADAS AS l
-        ON ((m.CONTRATO = l.CONTRATO) AND (l.FECHA_LLAMADA BETWEEN m.MAX_APERTURA_60D AND m.MAX_APERTURA))
-)
-
 ,LLAMADAS_GR AS (
-    SELECT MES_LLAMADA,CONTRATO,COUNT(DISTINCT TIQUETE_ID) AS N_LLAMADAS_60D,
-        CASE -- marca para el número de llamadas en los últimos 60 días
-            WHEN COUNT(DISTINCT TIQUETE_ID) = 1 THEN '1'
-            WHEN COUNT(DISTINCT TIQUETE_ID) = 2 THEN '2+'
-            WHEN COUNT(DISTINCT TIQUETE_ID) >= 3 THEN '3+'
-        ELSE NULL END AS FLAG_LLAMADAS_60D
-    FROM LLAMADAS_60D
-    GROUP BY 1,2
+    SELECT MES_LLAMADA,CONTRATO,N_LLAMADAS_MES
+        ,CASE -- marca para el número de llamadas en los últimos 60 días
+            WHEN N_LLAMADAS_MES = 1 THEN '1'
+            WHEN N_LLAMADAS_MES = 2 THEN '2'
+            WHEN N_LLAMADAS_MES >= 3 THEN '3+'
+        ELSE NULL END AS FLAG_LLAMADAS
+    FROM LLAMADAS_MES
+    GROUP BY 1,2,3
     ORDER BY 1, 3 DESC
 )
 
 ,OneCall AS (
-    SELECT MES_LLAMADA AS CALL_MONTH, FLAG_LLAMADAS_60D AS CALLS_FLAG, CONTRATO AS ContratoLlamada
+    SELECT MES_LLAMADA AS CALL_MONTH, FLAG_LLAMADAS AS CALLS_FLAG, CONTRATO AS ContratoLlamada
     FROM LLAMADAS_GR
-    WHERE FLAG_LLAMADAS_60D="1"
+    WHERE FLAG_LLAMADAS="1"
     GROUP BY 1,2,3
     ORDER BY 1
 )
 
 ,TwoCalls AS (
-    SELECT MES_LLAMADA AS CALL_MONTH, FLAG_LLAMADAS_60D AS CALLS_FLAG, CONTRATO AS ContratoLlamada
+    SELECT MES_LLAMADA AS CALL_MONTH, FLAG_LLAMADAS AS CALLS_FLAG, CONTRATO AS ContratoLlamada
     FROM LLAMADAS_GR
-    WHERE FLAG_LLAMADAS_60D="2"
+    WHERE FLAG_LLAMADAS="2"
     GROUP BY 1,2,3
     ORDER BY 1
 )
 
 ,MultipleCalls AS (
-    SELECT MES_LLAMADA AS CALL_MONTH, FLAG_LLAMADAS_60D AS CALLS_FLAG, CONTRATO AS ContratoLlamada
+    SELECT MES_LLAMADA AS CALL_MONTH, FLAG_LLAMADAS AS CALLS_FLAG, CONTRATO AS ContratoLlamada
     FROM LLAMADAS_GR
-    WHERE FLAG_LLAMADAS_60D="3+"
+    WHERE FLAG_LLAMADAS="3+"
     GROUP BY 1,2,3
     ORDER BY 1
 )
@@ -83,13 +74,20 @@ SELECT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_
   SELECT f.*,ContratoLlamada AS MultipleCalls
   FROM TwoCallsMasterTable f LEFT JOIN MultipleCalls ON safe_cast(ContratoLlamada as string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string) AND Month=safe_cast(CALL_MONTH as string)
 )
+/*select distinct Month,count(distinct fixed_account) as TotAcc,count(distinct OneCall) as oneCall,count(distinct TwoCalls) as twocalls
+,count(distinct MultipleCalls) as threecalls
+from multiplecallsmastertable
+group by 1
+order by 1
+*/
+
 
 ------------------------------------------------------------------ Users With Tech Tickets ----------------------------------------------------------------------
 
 
 ,TIQUETES AS(
     SELECT RIGHT(CONCAT('0000000000',CONTRATO),10) AS CONTRATO, FECHA_APERTURA AS FECHA_TIQUETE, DATE_TRUNC(FECHA_APERTURA,MONTH) AS MES_TIQUETE, TIQUETE
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-01-19_CR_TIQUETES_AVERIAS_2021-01_A_2021-11_D`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220602_CR_TIQUETES_AVERIA_2021-01_A_2022-05_D`
     WHERE 
         CLASE IS NOT NULL AND MOTIVO IS NOT NULL AND CONTRATO IS NOT NULL
         AND ESTADO <> "ANULADA"
@@ -165,7 +163,7 @@ TIQUETES_GR AS (
 
 ,FailedInstallations AS (
     SELECT DISTINCT TIMESTAMP_TRUNC(FECHA_APERTURA, MONTH) AS InstallationMonth, Contrato AS ContratoInstallations
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-12_CR_TIQUETES_AVERIAS_2021-01_A_2022-02_D`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220602_CR_TIQUETES_AVERIA_2021-01_A_2022-05_D`
     WHERE
         ESTADO IN ('CANCELADA','ANULADA')
         AND TIPO_ATENCION = "TR" -- con esto marcamos que es un truck roll
@@ -181,7 +179,7 @@ TIQUETES_GR AS (
 
 ,NumTiquetes AS(
     SELECT RIGHT(CONCAT('0000000000',CONTRATO),10) AS CONTRATO, Date_trunc(FECHA_APERTURA, Month) AS TiquetMonth, Count(Distinct TIQUETE) AS NumTechTickets
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-01-19_CR_TIQUETES_AVERIAS_2021-01_A_2021-11_D`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220602_CR_TIQUETES_AVERIA_2021-01_A_2022-05_D`
     WHERE 
         CLASE IS NOT NULL AND MOTIVO IS NOT NULL AND CONTRATO IS NOT NULL
         AND ESTADO <> "ANULADA"
@@ -189,9 +187,17 @@ TIQUETES_GR AS (
     GROUP BY 1,2
 )
 
---,NumTiquetesMasterTable AS(
+,NumTiquetesMasterTable AS(
     SELECT F.*,NumTechTickets 
     FROM failedinstallationsmastertable f LEFT JOIN NumTiquetes ON CONTRATO=RIGHT(CONCAT('0000000000',Final_Account),10) AND safe_cast(TiquetMonth as string)=Month
---)
+)
 
+######################################################## CSV File ########################################################################
 
+select distinct Month, --B_FinalTechFlag, B_FMC_Segment,B_FMCType, E_FinalTechFlag, E_FMC_Segment,E_FMCType,FinalChurnFlag,B_TenureFinalFlag,E_TenureFinalFlag,
+ count(distinct fixed_account) as activebase, count(distinct oneCall) as OneCall_Flag,count(distinct TwoCalls) as TwoCalls_Flag,count(distinct MultipleCalls) as MultipleCalls_Flag,
+ count(distinct OneTicket) as OneTicket_Flag,count(distinct TwoTickets) as TwoTickets_Flag,count(distinct MultipleTickets) as MultipleTickets_Flag,
+ count(distinct FailedInstallations) as FailedInstallations_Flag, round(sum(NumTechTickets)) as TicketDensity_Flag
+from NumTiquetesMasterTable
+Group by 1--,2,3,4,5,6,7,8,9,10
+Order by 1 desc--, 2,3,4
