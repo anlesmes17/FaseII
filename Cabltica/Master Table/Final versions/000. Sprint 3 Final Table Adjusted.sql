@@ -23,7 +23,7 @@ FinalTable AS (
     FROM (
         SELECT ACT_ACCT_CD, MIN(safe_cast(ACT_ACCT_INST_DT as date)) AS FECHA_INSTALACION,DATE(MIN(ACT_ACCT_INST_DT)) AS INSTALLATION_DT,
         CASE WHEN ACT_ACCT_CD IS NOT NULL THEN ACT_ACCT_CD ELSE NULL END AS monthsale_Flag
-        FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-07_Historical_CRM_Ene_2021_May_2022`
+        FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
         GROUP BY 1
     )
     GROUP BY 1,2,3,4
@@ -45,7 +45,7 @@ FinalTable AS (
 SELECT DISTINCT d.*, c.act_acct_cd as InstallationAccount,DATE_TRUNC(MIN(safe_cast(ACT_ACCT_INST_DT as date)),MONTH) AS InstallationMonth,CHURNTYPEFLAGSO,CHURN_MONTH,
 DATE_DIFF(CST_CHRN_DT,ACT_ACCT_INST_DT,DAY) AS DAYS_WO_PAYMENT,
 CASE WHEN DATE_DIFF(CST_CHRN_DT,ACT_ACCT_INST_DT,DAY) <= 119 THEN d.ACT_ACCT_CD ELSE NULL END AS NeverPaid_Flag
-FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-07_Historical_CRM_Ene_2021_May_2022` d
+FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022` d
 RIGHT JOIN InstallationChurners c
     ON d.ACT_ACCT_CD = CAST(c.CONTRATOCRM AS INT) AND d.FECHA_EXTRACCION = DATE(c.FECHA_CHURN)
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,
@@ -77,7 +77,7 @@ FROM NeverPaids m LEFT JOIN Installations v ON Month=safe_cast(v.InstallationMon
 
 ,INSTALACION_CONTRATOS AS (
     SELECT RIGHT(CONCAT('0000000000',ACT_ACCT_CD),10) AS ACT_ACCT_CD, DATE(MIN(ACT_ACCT_INST_DT)) AS INSTALLATION_DT, DATE_TRUNC(DATE(MIN(ACT_ACCT_INST_DT)),MONTH) AS InstallationMonth
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-07_Historical_CRM_Ene_2021_May_2022`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
     GROUP BY 1
 )
 
@@ -116,7 +116,7 @@ GROUP BY 1,2,3
 
 ,INSTALACIONES_TECH AS (
     SELECT DISTINCT RIGHT(CONCAT('0000000000',ACT_ACCT_CD),10) AS ACT_ACCT_CD, DATE(MIN(ACT_ACCT_INST_DT)) AS INSTALLATION_DT, DATE_TRUNC(DATE(MIN(ACT_ACCT_INST_DT)),MONTH) AS InstallationMonth
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-07_Historical_CRM_Ene_2021_May_2022`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
     GROUP BY 1
 )
 
@@ -163,13 +163,13 @@ ON safe_cast(CONTRATO AS string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Accou
 
 ,sales_gen AS (
     SELECT DISTINCT ACT_ACCT_CD, MIN(ACT_ACCT_INST_DT) AS FECHA_INSTALACION
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-07_Historical_CRM_Ene_2021_May_2022`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
     GROUP BY 1
 )
 
 ,first_bill AS (
     SELECT ACT_ACCT_CD, MIN(oldest_unpaid_bill_dt) AS f_bill
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-07_Historical_CRM_Ene_2021_May_2022`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
     GROUP BY 1
     ORDER BY 1
 )
@@ -180,7 +180,7 @@ ON safe_cast(CONTRATO AS string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Accou
         SELECT *,
             FIRST_VALUE(FECHA_EXTRACCION IGNORE NULLS) OVER (PARTITION BY ACT_ACCT_CD ORDER BY FECHA_EXTRACCION) AS PRIMER_DNA,
             FIRST_VALUE(OLDEST_UNPAID_BILL_DT IGNORE NULLS) OVER (PARTITION BY ACT_ACCT_CD ORDER BY FECHA_EXTRACCION) AS PRIMER_OLDEST_UNPAID
-        FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-07_Historical_CRM_Ene_2021_May_2022`
+        FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
     )
     WHERE ACT_ACCT_INST_DT >= '2021-01-01'
 )
@@ -198,10 +198,6 @@ ON safe_cast(CONTRATO AS string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Accou
             act_acct_cd, 
             min(ACT_ACCT_INST_DT) as act_cust_strt_dt,
             DATE_TRUNC(min(ACT_ACCT_INST_DT),MONTH) AS MONTH_INSTALLATION,
-            max(oldest_unpaid_bill_dt) as oldest_unpaid_bill_dt,
-            max(cast (LAST_PAYMENT_DT as date) ) AS LAST_PAYMENT_DT,
-            min(fi_outst_age) as min_fi_outst_age, 
-            max(fi_outst_age) as max_fi_outst_age,
             CASE WHEN (max(fi_outst_age) >=26 ) then act_acct_cd ELSE NULL END AS SoftDx_Flag,
     FROM first_bill_dna
     GROUP BY 1
@@ -235,7 +231,7 @@ FROM AbsMRC
 
 ,INSTALACIONES_OUTLIER AS (
     SELECT DISTINCT RIGHT(CONCAT('0000000000',ACT_ACCT_CD),10) AS ACT_ACCT_CD, /*DATE(MIN(ACT_ACCT_INST_DT)) AS INSTALLATION_DT,*/ DATE_TRUNC(DATE(MIN(ACT_ACCT_INST_DT)),MONTH) AS InstallationMonth
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-07_Historical_CRM_Ene_2021_May_2022`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
     GROUP BY 1
 )
 
