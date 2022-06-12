@@ -162,7 +162,7 @@ TIQUETES_GR AS (
 --------------------------------------------------------------- Customers With Failed Visits ------------------------------------------------------------------
 
 ,FailedInstallations AS (
-    SELECT DISTINCT TIMESTAMP_TRUNC(FECHA_APERTURA, MONTH) AS InstallationMonth, Contrato AS ContratoInstallations
+    SELECT DISTINCT DATE_TRUNC(FECHA_APERTURA, MONTH) AS InstallationMonth, Contrato AS ContratoInstallations
     FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220602_CR_TIQUETES_AVERIA_2021-01_A_2022-05_D`
     WHERE
         ESTADO IN ('CANCELADA','ANULADA')
