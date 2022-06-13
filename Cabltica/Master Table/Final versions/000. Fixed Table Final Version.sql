@@ -119,7 +119,7 @@ mrcVO,mrcBB,mrcTV, Bill,ACT_ACCT_SIGN_DT
 )
 
 ,ServiceOrders AS (
-    SELECT * FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-01-12_CR_ORDENES_SERVICIO_2021-01_A_2021-11_D`
+    SELECT * FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220602_CR_ORDENES_SERVICIO_2021-01_A_2022-05_D`
 )
 
 
