@@ -37,7 +37,7 @@ where date_trunc('Month',date(DatePrel))=date('0022-03-01')
 ,FMC_MissingMasterTable AS(
 Select f.*,b.account_no as FMC_Missing
 FROM FMC_MarMasterTable f LEFT JOIN FMC_Missing b ON cast(Month as varchar)=b.dt 
-AND cast(b.Account_no as varchar)=cast(Final_Account as varchar)
+AND cast(b.Account_no as varchar)=cast(Final_Account as varchar) and Month=date('2022-03-01')
 )
 
 ,FMC_MarFinal AS(
@@ -50,14 +50,25 @@ FROM FMC_MissingMasterTable
 
 --,SegmentAndType AS(
 Select *, 
-CASE WHEN MarFMC IS NOT NULL THEN 'Soft/Hard FMC' ELSE b_FMCType END AS b_fmcTypeFinal,
-CASE WHEN MarFMC IS NOT NULL THEN 'Soft/Hard FMC' ELSE e_FMCType END AS e_fmcTypeFinal,
+
+CASE WHEN MarFMC IS NOT NULL AND b_mixcode_adj IS NULL THEN 'Mobile Only'
+WHEN MarFMC IS NOT NULL THEN 'Soft/Hard FMC' 
+WHEN b_mixcode_adj IS NULL and Month=date('2022-03-01') THEN NULL ELSE b_FMCType END AS b_fmcTypeFinal,
+
+CASE WHEN MarFMC IS NOT NULL AND e_mixcode_adj IS NULL THEN 'Mobile Only'
+WHEN MarFMC IS NOT NULL THEN 'Soft/Hard FMC' 
+WHEN e_mixcode_adj IS NULL and Month=date('2022-03-01') THEN NULL ELSE e_FMCType END AS e_fmcTypeFinal,
+
 CASE 
+WHEN MarFMC IS NOT NULL AND b_mixcode_adj IS NULL THEN 'P1_Mobile'
+WHEN b_mixcode_adj IS NULL and Month=date('2022-03-01') THEN NULL
 WHEN MarFMC IS NOT NULL and b_mixcode_adj ='1P' THEN 'P2'
 WHEN MarFMC IS NOT NULL and b_mixcode_adj ='2P' THEN 'P3'
 WHEN MarFMC IS NOT NULL and b_mixcode_adj ='3P' THEN 'P4'
 ELSE b_FMC_Segment END AS b_FMC_Segment_Final,
 CASE 
+WHEN MarFMC IS NOT NULL AND e_mixcode_adj IS NULL THEN 'P1_Mobile'
+WHEN e_mixcode_adj IS NULL and Month=date('2022-03-01') THEN NULL
 WHEN MarFMC IS NOT NULL and e_mixcode_adj ='1P' THEN 'P2'
 WHEN MarFMC IS NOT NULL and e_mixcode_adj ='2P' THEN 'P3'
 WHEN MarFMC IS NOT NULL and e_mixcode_adj ='3P' THEN 'P4'
@@ -65,3 +76,4 @@ ELSE e_FMC_Segment END AS e_FMC_Segment_Final
 
 FROM FMC_MarFinal
 --)
+
