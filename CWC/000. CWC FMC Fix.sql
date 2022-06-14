@@ -48,8 +48,20 @@ ELSE NULL END AS MarFMC
 FROM FMC_MissingMasterTable
 )
 
-,SegmentAndType AS(
+--,SegmentAndType AS(
 Select *, 
-CASE
-WHEN MarFMC IS NOT NULL AND b_mixcode_adj =
-)
+CASE WHEN MarFMC IS NOT NULL THEN 'Soft/Hard FMC' ELSE b_FMCType END AS b_fmcTypeFinal,
+CASE WHEN MarFMC IS NOT NULL THEN 'Soft/Hard FMC' ELSE e_FMCType END AS e_fmcTypeFinal,
+CASE 
+WHEN MarFMC IS NOT NULL and b_mixcode_adj ='1P' THEN 'P2'
+WHEN MarFMC IS NOT NULL and b_mixcode_adj ='2P' THEN 'P3'
+WHEN MarFMC IS NOT NULL and b_mixcode_adj ='3P' THEN 'P4'
+ELSE b_FMC_Segment END AS b_FMC_Segment_Final,
+CASE 
+WHEN MarFMC IS NOT NULL and e_mixcode_adj ='1P' THEN 'P2'
+WHEN MarFMC IS NOT NULL and e_mixcode_adj ='2P' THEN 'P3'
+WHEN MarFMC IS NOT NULL and e_mixcode_adj ='3P' THEN 'P4'
+ELSE e_FMC_Segment END AS e_FMC_Segment_Final
+
+FROM FMC_MarFinal
+--)
