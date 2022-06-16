@@ -55,8 +55,10 @@ CASE WHEN MarFMC IS NOT NULL AND b_mixcode_adj IS NULL THEN 'Mobile Only'
 WHEN MarFMC IS NOT NULL THEN 'Soft/Hard FMC' 
 WHEN b_mixcode_adj IS NULL and Month=date('2022-03-01') and mobile_activebom<>1 THEN NULL ELSE b_FMCType END AS b_fmcTypeFinal,
 
-CASE WHEN MarFMC IS NOT NULL AND e_mixcode_adj IS NULL THEN 'Mobile Only'
-WHEN MarFMC IS NOT NULL THEN 'Soft/Hard FMC' 
+CASE 
+WHEN MarFMC IS NULL AND mobile_activeeom=1 and Month=date('2022-03-01')  AND e_mixcode_adj IS NULL THEN 'Mobile Only'
+WHEN MarFMC IS NOT NULL AND e_mixcode_adj IS NULL AND mobile_activeeom=1 THEN 'Mobile Only'
+WHEN MarFMC IS NOT NULL AND activeeom=1 THEN 'Soft/Hard FMC' 
 WHEN e_mixcode_adj IS NULL and Month=date('2022-03-01') and mobile_activebom<>1 THEN NULL ELSE e_FMCType END AS e_fmcTypeFinal,
 
 CASE 
@@ -75,8 +77,9 @@ WHEN MarFMC IS NOT NULL and e_mixcode_adj ='3P' THEN 'P4'
 ELSE e_FMC_Segment END AS e_FMC_Segment_Final
 
 FROM FMC_MarFinal
-)
+--)
+/*
 Select distinct Month, b_fmcTypeFinal,b_FMC_Segment_Final,e_fmcTypeFinal,e_FMC_Segment_Final,waterfall_flag, count(distinct final_account) FROM SegmentAndType
 WHERE Month>date('2022-01-01')
 group by 1,2,3,4,5,6
-order by 1,2,3,4,5,6
+order by 1,2,3,4,5,6*/
