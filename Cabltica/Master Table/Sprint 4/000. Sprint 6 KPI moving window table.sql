@@ -10,7 +10,7 @@ SELECT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_
 
 ,LLAMADAS AS(
     SELECT RIGHT(CONCAT('0000000000',CONTRATO),10) AS CONTRATO, FECHA_APERTURA AS FECHA_LLAMADA, DATE_TRUNC(FECHA_APERTURA,MONTH) AS MES_LLAMADA, TIQUETE_ID
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-01-12_CR_TIQUETES_SERVICIO_2021-01_A_2021-11_D`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220602_CR_TIQUETES_SERVICIO_2021-01_A_2022-05_D`
     WHERE 
         CLASE IS NOT NULL AND MOTIVO IS NOT NULL AND CONTRATO IS NOT NULL
         AND ESTADO <> "ANULADA"
@@ -185,6 +185,16 @@ TIQUETES_GR AS (
     SELECT F.*,NumTechTickets 
     FROM failedinstallationsmastertable f LEFT JOIN NumTiquetes ON CONTRATO=RIGHT(CONCAT('0000000000',Final_Account),10) AND safe_cast(TiquetMonth as string)=Month
 )
+/*
+select * from NumTiquetesMasterTable
+where final_account="1155330"
+order by month
+*/
+/*
+Select * FROM NumTiquetesMasterTable 
+where month="2022-04-01" --and final_account="625304"
+order by month
+*/
 
 ######################################################## CSV File ########################################################################
 
@@ -193,5 +203,6 @@ select distinct Month, B_FinalTechFlag, B_FMC_Segment,B_FMCType, E_FinalTechFlag
  count(distinct OneTicket) as OneTicket_Flag,count(distinct TwoTickets) as TwoTickets_Flag,count(distinct MultipleTickets) as MultipleTickets_Flag,
  count(distinct FailedInstallations) as FailedInstallations_Flag, round(sum(NumTechTickets)) as TicketDensity_Flag
 from NumTiquetesMasterTable
+Where finalchurnflag<>"Fixed Churner" AND finalchurnflag<>"Customer Gap" AND finalchurnflag<>"Full Churner" AND finalchurnflag<>"Churn Exception"
 Group by 1,2,3,4,5,6,7,8,9,10
 Order by 1 desc--, 2,3,4
