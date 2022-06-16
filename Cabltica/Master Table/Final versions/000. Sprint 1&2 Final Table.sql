@@ -133,7 +133,7 @@ ON safe_cast(Fixed_Account as string)=Mobile_Contrato_Adj AND Fixed_Month=Mobile
  WHEN (B_FMC_Status="Near FMC" OR  B_FMC_Status="Soft FMC") THEN B_FMC_Status
  END AS B_FMCType,
  CASE 
- WHEN Final_EOM_ActiveFlag = 0 AND (ActiveEOM = 0 AND FixedChurnType IS NULL) OR (Mobile_ActiveEOM = 0 AND MobileChurnFlag is null) THEN "Customer Gap"
+ WHEN Final_EOM_ActiveFlag = 0 AND ((ActiveEOM = 0 AND FixedChurnType IS NULL) OR (Mobile_ActiveEOM = 0 AND MobileChurnFlag is null)) THEN "Customer Gap"
  WHEN E_FMC_Status = "Fixed Only" AND FixedChurnType IS NOT NULL THEN NULL
  WHEN E_FMC_Status = "Mobile Only" AND MobileChurnFlag IS NOT NULL THEN NULL
  WHEN (E_FMC_Status = "Fixed Only"  )  AND (Mobile_ActiveEOM = 0 OR MOBILE_ACTIVEEOM IS NULL OR(Mobile_ActiveEOM = 1 AND MobileChurnFlag IS NOT NULL))  AND E_MIX = "1P" THEN "Fixed 1P"
@@ -183,7 +183,7 @@ CASE WHEN (FixedChurnType is not null  AND (ActiveBOM IS NULL OR ACTIVEBOM = 0))
 WHEN (FixedChurnType is not null and MobileChurnFlag is not null) then "Full Churner"
 WHEN (FixedChurnType is not null and MobileChurnFlag is null) then "Fixed Churner"
 WHEN (FixedChurnType is null and MobileChurnFlag is NOT null) then "Mobile Churner"
-WHEN (FixedChurnType is null and MobileChurnFlag is null and (ActiveEOM = 0 OR ActiveEOM is null) AND (Mobile_ActiveEOM = 0 or Mobile_ActiveEOM IS NULL)) THEN "Customer Gap"
+WHEN FixedChurnType is null and MobileChurnFlag is null and (ActiveEOM = 0 OR ActiveEOM is null) AND (Mobile_ActiveEOM = 0 or Mobile_ActiveEOM IS NULL) THEN "Customer Gap"
 ELSE "Non Churner" END AS FinalChurnFlag,
  round(ifnull(TOTAL_E_MRC,0) - ifnull(TOTAL_B_MRC,0),0) AS MRC_Change
 FROM CustomerBase_FMC_Tech_Flags c
