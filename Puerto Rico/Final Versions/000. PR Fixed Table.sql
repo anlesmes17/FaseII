@@ -74,18 +74,28 @@ WHEN B_BundleType LIKE'%1P%' THEN 1
 WHEN B_BundleType LIKE'%2P%' THEN 2
 WHEN B_BundleType LIKE'%3P%' THEN 3
 ELSE NULL END AS B_Num_RGUs,
+
+CASE WHEN B_play_type LIKE'%HSD%' THEN Fixed_Account ELSE NULL END AS B_HSD_RGU,
+CASE WHEN B_play_type LIKE'%Video%' THEN Fixed_Account ELSE NULL END AS B_Video_RGU,
+CASE WHEN B_play_type LIKE'%Voice%' THEN Fixed_Account ELSE NULL END AS B_Voice_RGU,
+
 CASE
 WHEN E_BundleType LIKE'%1P%' THEN 1
 WHEN E_BundleType LIKE'%2P%' THEN 2
 WHEN E_BundleType LIKE'%3P%' THEN 3
 ELSE NULL END AS E_Num_RGUs,
 
+CASE WHEN E_play_type LIKE'%HSD%' THEN Fixed_Account ELSE NULL END AS E_HSD_RGU,
+CASE WHEN E_play_type LIKE'%Video%' THEN Fixed_Account ELSE NULL END AS E_Video_RGU,
+CASE WHEN E_play_type LIKE'%Voice%' THEN Fixed_Account ELSE NULL END AS E_Voice_RGU,
+
+
 CASE
 WHEN B_BundleType=E_BundleType THEN '1.Same RGUs'
-WHEN (B_BundleType LIKE'%1P%'  AND E_BundleType  IN('%2P%','%3P%')) OR (B_BundleType LIKE'%2P%'  AND E_BundleType  IN('%3P%')) THEN '2.Upsell' 
-WHEN (B_BundleType LIKE'%3P%'  AND E_BundleType  IN('%2P%','%1P%')) OR (B_BundleType LIKE'%2P%'  AND E_BundleType  IN('%1P%')) THEN '3.Downsell' 
-WHEN (B_BundleType IS NULL AND E_BundleType IS NOT NULL AND DATE_TRUNC('Month',date(E_StrtDate)) <> date('2022-05-01')) THEN '4.Come Back to Life' --- Variabilizar mes
-WHEN (B_BundleType IS NULL AND E_BundleType IS NOT NULL AND DATE_TRUNC('Month',date(E_StrtDate)) = date('2022-05-01')) THEN '5.New Customer' --- Variabilizar mes
+WHEN (B_BundleType LIKE'%1P%'  AND E_BundleType  IN('2P','3P')) OR (B_BundleType LIKE'%2P%'  AND E_BundleType  IN('3P')) THEN '2.Upsell' 
+WHEN (B_BundleType LIKE'%3P%'  AND E_BundleType  IN('2P','1P')) OR (B_BundleType LIKE'%2P%'  AND E_BundleType  IN('1P')) THEN '3.Downsell' 
+WHEN (B_BundleType IS NULL AND E_BundleType IS NOT NULL AND DATE_TRUNC('Month',date(E_StrtDate)) <> DATE_TRUNC('Month',date(Fixed_Month))) THEN '4.Come Back to Life' --- Variabilizar mes
+WHEN (B_BundleType IS NULL AND E_BundleType IS NOT NULL AND DATE_TRUNC('Month',date(E_StrtDate)) =  DATE_TRUNC('Month',date(Fixed_Month))) THEN '5.New Customer' --- Variabilizar mes
 WHEN ActiveBOM = 1 AND ActiveEOM = 0 THEN '6.Loss'
 ELSE NULL END AS MainMovement
 FROM fixedcustomerbase f
@@ -96,7 +106,8 @@ Select Distinct f.*,
 CASE 
 WHEN MainMovement='1.Same RGUs' AND (E_MRC - B_MRC) > 0 THEN '1.Up-spin' 
 WHEN MainMovement='1.Same RGUs' AND (E_MRC - B_MRC) < 0 THEN '2.Down-spin' 
-END AS SpinMovement
+END AS SpinMovement,
+(E_MRC - B_MRC) AS MRC_DIFF
 FROM MainMovementBase f
 )
 ---------------------------------------------------------------------------- Churn -----------------------------------------------------------------------------------------------
