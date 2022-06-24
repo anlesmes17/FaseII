@@ -12,7 +12,7 @@ SELECT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_
 ---Trae la fecha de oldest unpaid bill preliminar usando la última fecha de pago
 ,InitialAdjustment AS (
 SELECT*, DATE_TRUNC(DATE_ADD(LST_PYM_DT, INTERVAL 1 MONTH),MONTH) AS OLDEST_UNPAID_BILL_ADJ
-FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2021_mar_2022_D`
+FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
 )
 
 ---Ajuste de oldest unpaid bill para usuarios que están al dia
@@ -36,7 +36,6 @@ FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2
   SELECT *, DATE_TRUNC(FECHA_EXTRACCION, MONTH) AS Month 
   FROM BillingColumnsAdjusted
   WHERE DATE_TRUNC(FI_BILL_DT_M0,MONTH)=DATE_TRUNC(FECHA_EXTRACCION,MONTH) AND (FI_OUTST_AGE_FINAL=0 OR FI_OUTST_AGE_FINAL IS NULL) 
-
 )
 ---Usuarios que llegan a dia 1 de mora
 ,OverdueMonth AS (
@@ -62,7 +61,6 @@ FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-04-20_Historical_CRM_ene_2
   LEFT JOIN SoftDxMonth c ON a.act_acct_cd=c.act_acct_cd and a.Month=c.Month LEFT JOIN HardDxMonth d 
   ON a.act_acct_cd=d.act_acct_cd and a.Month=d.Month
 )
-
 ,OutstandingAndSoftDxMasterTable AS (
   SELECT a.*, OutstandingAccount,SoftDxAccount
   FROM Sprint3Table a LEFT JOIN Funnel b ON a.Fixed_Account=b.BillingAccount AND a.Month=safe_cast(InitialMonth as string)
