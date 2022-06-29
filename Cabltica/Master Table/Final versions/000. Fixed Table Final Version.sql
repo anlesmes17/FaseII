@@ -119,7 +119,7 @@ mrcVO,mrcBB,mrcTV, Bill,ACT_ACCT_SIGN_DT
 )
 
 ,ServiceOrders AS (
-    SELECT * FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220602_CR_ORDENES_SERVICIO_2021-01_A_2022-05_D`
+    SELECT * FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_ORDENES_SERVICIO_2021-01_A_2022-05_D`
 )
 
 
@@ -157,13 +157,13 @@ mrcVO,mrcBB,mrcTV, Bill,ACT_ACCT_SIGN_DT
 
 ,CHURNERSSO AS
 (SELECT DISTINCT RIGHT(CONCAT('0000000000',NOMBRE_CONTRATO) ,10) AS CONTRATOSO, FECHA_APERTURA,
- FROM ServiceOrders 
+ FROM ServiceOrders
  WHERE
   TIPO_ORDEN = "DESINSTALACION" 
   AND (ESTADO <> "CANCELADA" OR ESTADO <> "ANULADA")
  AND FECHA_APERTURA IS NOT NULL
- )
-,PRIMERCHURNSO AS
+ ),
+PRIMERCHURNSO AS
 (SELECT DISTINCT RIGHT(CONCAT('0000000000',NOMBRE_CONTRATO) ,10) AS CONTRATOSO, Min(FECHA_APERTURA) as PrimerChurnSO,
 FROM ServiceOrders
  WHERE
@@ -171,21 +171,42 @@ FROM ServiceOrders
   AND (ESTADO <> "CANCELADA" OR ESTADO <> "ANULADA")
  AND FECHA_APERTURA IS NOT NULL
  GROUP BY CONTRATOSO
- )
-,CHURNERSINVOLUNTARIOS AS
+ ),
+CHURNERSINVOLUNTARIOS AS
 (SELECT DISTINCT RIGHT(CONCAT('0000000000',NOMBRE_CONTRATO) ,10) AS CONTRATOSO, FECHA_APERTURA,
- FROM ServiceOrders
+ FROM ServiceOrders 
  WHERE
   TIPO_ORDEN = "DESINSTALACION" 
   AND (ESTADO <> "CANCELADA" OR ESTADO <> "ANULADA")
   AND SUBMOTIVO = "MOROSIDAD"
  AND FECHA_APERTURA IS NOT NULL
- )
-,CHURNTYPEFLAGSO AS(
+ ),
+CHURNTYPEFLAGSO AS(
     SELECT DISTINCT c. CONTRATOSO, c.PrimerChurnSO,
-    CASE WHEN t.CONTRATOSO IS NULL THEN "Voluntario"
-    WHEN t.CONTRATOSO IS NOT NULL THEN "Involuntario" END AS FixedChurnType
+    CASE WHEN t.CONTRATOSO IS NULL THEN c.contratoso END AS VOLUNTARIO,
+    CASE WHEN t.CONTRATOSO IS NOT NULL THEN c.CONTRATOSO END AS INVOLUNTARIO
     FROM PRIMERCHURNSO c LEFT JOIN CHURNERSINVOLUNTARIOS t ON c.CONTRATOSO = t.CONTRATOSO AND t.FECHA_APERTURA = c.PrimerChurnSO
+),
+CHURNERSCRM AS(
+  SELECT DISTINCT RIGHT(CONCAT('0000000000',ACT_ACCT_CD) ,10) AS CHURNER, MAX(DATE(CST_CHRN_DT)) AS Maxfecha,DATE_TRUNC(Max(DATE(CST_CHRN_DT)), MONTH) AS MesChurnF
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
+    GROUP BY ACT_ACCT_CD
+    HAVING DATE_TRUNC(Maxfecha, MONTH) = DATE_TRUNC(MAX(FECHA_EXTRACCION), MONTH)
+),
+CRUCECHURNERS AS(
+SELECT DISTINCT s.CONTRATOSO, CHURNER, MaxFecha, MesChurnF, Voluntario, Involuntario, Max(FECHA_APERTURA) as Fecha_Apertura
+FROM CHURNERSCRM c INNER JOIN CHURNERSSO s ON CONTRATOSO = CHURNER
+AND c.MaxFecha >= s.FECHA_APERTURA AND date_diff(c.MaxFecha, s.FECHA_APERTURA, MONTH) <= 3
+INNER JOIN CHURNTYPEFLAGSO f ON s.CONTRATOSO = f.CONTRATOSO
+GROUP BY contratoso, CHURNER, MesChurnF, MaxFecha, Voluntario, Involuntario
+)
+,ChurnersFinales AS(
+SELECT DISTINCT MesChurnF, MaxFecha as FechaChurn, Fecha_Apertura as FechaMaxSO,
+ CHURNER AS CONTRATOCRM, CONTRATOSO AS CONTRATOSERVORDER, 
+CASE WHEN VOLUNTARIO IS NOT NULL THEN "Voluntario"
+WHEN INVOLUNTARIO IS NOT NULL THEN "Involuntario" END AS FixedChurnType
+FROM CRUCECHURNERS
+ORDER BY MesChurnF
 )
 
 ,CustomerBaseWithChurners AS(
@@ -195,7 +216,7 @@ FROM ServiceOrders
 
 ,CRUCECHURNERSCRM AS(
  SELECT DISTINCT C.* except(B_TV_id, E_TV_id,B_BB_id, E_BB_id), FixedChurnType, 
- FROM CustomerBaseWithChurners  c LEFT JOIN CHURNTYPEFLAGSO s ON safe_cast(s.Contratoso as string)= act_acct_cd AND date_trunc(primerchurnSO, month) = Fixed_Month
+ FROM CustomerBaseWithChurners  c LEFT JOIN ChurnersFinales s ON safe_cast(s.CONTRATOSERVORDER as string)= act_acct_cd AND date_trunc(FechaMaxSO, month) = Fixed_Month
 )
 ########################################## Rejoiners #####################################################
 
@@ -229,6 +250,8 @@ THEN 1 ELSE 0 END AS Fixed_Rejoiner
 FROM CRUCECHURNERSCRM f LEFT JOIN FixedRejoinerFebPopulation r ON f.Fixed_Account=r.Fixed_Account AND f.Fixed_Month=SAFE_CAST(r.Month AS DATE)
 )
 
-
-SELECT *, CONCAT(ifnull(B_VO_nm,""),ifnull(B_TV_nm,""),ifnull(B_BB_nm,"")) AS B_PLAN,CONCAT(ifnull(E_VO_nm,""),ifnull(E_TV_nm,""),ifnull(E_BB_nm,"")) AS E_PLAN
+--,FinalTable as(
+SELECT DISTINCT *, CONCAT(ifnull(B_VO_nm,""),ifnull(B_TV_nm,""),ifnull(B_BB_nm,"")) AS B_PLAN,CONCAT(ifnull(E_VO_nm,""),ifnull(E_TV_nm,""),ifnull(E_BB_nm,"")) AS E_PLAN
 FROM FullFixedBase_Rejoiners
+order by fixed_month
+--)
