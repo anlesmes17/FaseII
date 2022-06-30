@@ -182,8 +182,9 @@ END AS E_FMC_Segment,
 CASE WHEN (FixedChurnType is not null  AND (ActiveBOM IS NULL OR ACTIVEBOM = 0)) OR (MobileChurnFlag is not null and (Mobile_ActiveBOM = 0 or Mobile_ActiveBOM IS NULL)) THEN "Churn Exception"
 WHEN (FixedChurnType is not null and MobileChurnFlag is not null) then "Full Churner"
 WHEN (FixedChurnType is not null and MobileChurnFlag is null) then "Fixed Churner"
+WHEN FixedChurnType is null and activebom=1 and mobile_activebom=1 AND (activeeom=0 or activeeom is null) and (Mobile_ActiveEOM=0 or mobile_activeeom Is null) THEN "Full Churner"
 WHEN (FixedChurnType is null and MobileChurnFlag is NOT null) then "Mobile Churner"
-WHEN FixedChurnType is null and MobileChurnFlag is null and (ActiveEOM = 0 OR ActiveEOM is null) AND (Mobile_ActiveEOM = 0 or Mobile_ActiveEOM IS NULL) THEN "Customer Gap"
+WHEN ActiveBom=1 AND ActiveEOM=0 AND Mobile_Month IS NULL THEN "Fixed churner - Customer Gap"
 ELSE "Non Churner" END AS FinalChurnFlag,
  round(ifnull(TOTAL_E_MRC,0) - ifnull(TOTAL_B_MRC,0),0) AS MRC_Change
 FROM CustomerBase_FMC_Tech_Flags c
@@ -206,6 +207,11 @@ FROM CustomerBase_FMCSegments_ChurnFlag f
 
 ,FullCustomersBase_Flags_Waterfall AS(
 SELECT DISTINCT f.* except(E_FMC_Segment),
+CASE WHEN (FinalChurnFlag = "Full Churner") OR ((FinalChurnFlag = 'Fixed Churner' OR FinalChurnFlag = "Fixed churner - Customer Gap") and B_FMC_Segment = "P1_Fixed" and (E_FMC_Segment is null or E_FMC_Segment="Customer Gap")) OR (FinalChurnFlag = "Mobile Churner" and B_FMC_Segment = "P1_Mobile" and E_FMC_Segment is null) then 'Total Churner'
+WHEN FinalChurnFlag = "Non Churner" then null
+ELSE 'Partial Churner' end as Partial_Total_ChurnFlag,
+
+
 CASE WHEN (B_FMCTYPE="Fixed 1P" OR B_FMCType="Fixed 2P" OR B_FMCType="Fixed 3P" ) AND E_FMCType="Mobile Only" AND FinalChurnFlag<>"Churn Exception"
 AND FinalChurnFlag<>"Customer Gap" AND FinalChurnFlag<>"Fixed Churner" THEN "Customer Gap"
 ELSE E_FMC_Segment END AS E_FMC_Segment
@@ -238,4 +244,4 @@ FROM RejoinerColumn f
 )
 
 SELECT Distinct * FROM FullCustomersBase_Flags_Waterfall
---WHERE Month='2022-02-01' 
+--WHERE Month='2022-03-01'
