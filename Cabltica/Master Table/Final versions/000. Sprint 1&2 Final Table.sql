@@ -114,7 +114,7 @@ WHEN (E_EMAIL IS NOT NULL AND E_CONTRATO IS NULL) OR (ActiveEOM = 1 and Mobile_A
 WHEN (E_EMAIL IS NOT NULL AND E_CONTRATO IS NOT NULL)   THEN "Undefined FMC"
 WHEN (Fixed_Account IS NOT NULL AND ActiveEOM=1 AND (Mobile_ActiveEOM = 0 OR Mobile_ActiveEOM IS NULL))  THEN "Fixed Only"
 WHEN (Mobile_Account IS NOT NULL AND Mobile_ActiveEOM=1 AND (ActiveEOM = 0 OR ActiveEOM IS NULL )) AND MobileChurnFlag IS NULL THEN "Mobile Only"
- END AS E_FMC_Status, f.*,m.* EXCEPT(B_EMAIL, E_EMAIL, B_CONTR, E_CONTR, B_Mobile_Contrato_Adj, E_Mobile_Contrato_Adj, Mobile_Account, MESES_ANTIGUEDAD),
+ END AS E_FMC_Status, f.*,m.* EXCEPT(B_EMAIL, E_EMAIL, B_CONTR, E_CONTR, B_Mobile_Contrato_Adj, E_Mobile_Contrato_Adj, MESES_ANTIGUEDAD),
 FROM Fixed_Base f FULL OUTER JOIN JoinAccountFix  m 
 ON safe_cast(Fixed_Account as string)=Mobile_Contrato_Adj AND Fixed_Month=Mobile_Month
 )
@@ -180,7 +180,7 @@ WHEN ((E_FMCType  = "Fixed 1P" OR E_FMCType  = "Fixed 2P" OR E_FMCType  = "Fixed
 WHEN ((E_FMCType = "Mobile Only")  OR (E_FMCType  = "Soft FMC" AND(ActiveEOM= 0 OR ActiveEOM IS NULL))) AND (Mobile_ActiveEOM = 1 and MobileChurnFlag IS NULL) THEN "P1_Mobile"
 END AS E_FMC_Segment,
 CASE WHEN (FixedChurnType is not null  AND (ActiveBOM IS NULL OR ACTIVEBOM = 0)) OR (MobileChurnFlag is not null and (Mobile_ActiveBOM = 0 or Mobile_ActiveBOM IS NULL)) THEN "Churn Exception"
-WHEN (FixedChurnType is not null and MobileChurnFlag is not null) then "Full Churner"
+WHEN (FixedChurnType is not null and MobileChurnFlag is not null) then "Churner"
 WHEN (FixedChurnType is not null and MobileChurnFlag is null) then "Fixed Churner"
 WHEN FixedChurnType is null and activebom=1 and mobile_activebom=1 AND (activeeom=0 or activeeom is null) and (Mobile_ActiveEOM=0 or mobile_activeeom Is null) THEN "Full Churner"
 WHEN (FixedChurnType is null and MobileChurnFlag is NOT null) then "Mobile Churner"
@@ -207,9 +207,19 @@ FROM CustomerBase_FMCSegments_ChurnFlag f
 
 ,FullCustomersBase_Flags_Waterfall AS(
 SELECT DISTINCT f.* except(E_FMC_Segment),
-CASE WHEN (FinalChurnFlag = "Full Churner") OR ((FinalChurnFlag = 'Fixed Churner' OR FinalChurnFlag = "Fixed churner - Customer Gap") and B_FMC_Segment = "P1_Fixed" and (E_FMC_Segment is null or E_FMC_Segment="Customer Gap")) OR (FinalChurnFlag = "Mobile Churner" and B_FMC_Segment = "P1_Mobile" and E_FMC_Segment is null) then 'Total Churner'
+CASE WHEN (FinalChurnFlag = "Churner") OR ((FinalChurnFlag = 'Fixed Churner' OR FinalChurnFlag = "Fixed churner - Customer Gap") and B_FMC_Segment = "P1_Fixed" and (E_FMC_Segment is null or E_FMC_Segment="Customer Gap")) OR (FinalChurnFlag = "Mobile Churner" and B_FMC_Segment = "P1_Mobile" and E_FMC_Segment is null) then 'Total Churner'
 WHEN FinalChurnFlag = "Non Churner" then null
 ELSE 'Partial Churner' end as Partial_Total_ChurnFlag,
+--Arreglar cuando se tenga churn split
+CASE
+WHEN ((FinalChurnFlag="Full Churner" OR FinalChurnFlag="Fixed Churner" OR FinalChurnFlag="Fixed churner - Customer Gap" AND (Mobile_ActiveEOM=0 OR Mobile_ActiveEOM IS NULL)) AND FixedChurnType="Voluntario" AND MobileChurnFlag IS NULL) OR (MobileChurnFlag="BAJA VOLUNTARIA" AND(ActiveBOM=0 OR ActiveEOM IS NULL)) Then "Voluntary"
+WHEN ((FinalChurnFlag="Full Churner" OR FinalChurnFlag="Fixed Churner" OR FinalChurnFlag="Fixed churner - Customer Gap" AND (Mobile_ActiveEOM=0 OR Mobile_ActiveEOM IS NULL)) AND FixedChurnType="Involuntario" AND MobileChurnFlag IS NULL) OR ((MobileChurnFlag="BAJA INVOLUNTARIA" OR MobileChurnFlag="ALTA/MIGRACION") AND(ActiveBOM=0 OR ActiveEOM IS NULL)) Then "Involuntary"
+
+
+--WHEN (ActiveEOM=0 OR ActiveEOM IS NULL) AND MobileChurnFlag IS NOT NULL THEN "TBD"
+End as churntypefinalflag,
+
+
 
 
 CASE WHEN (B_FMCTYPE="Fixed 1P" OR B_FMCType="Fixed 2P" OR B_FMCType="Fixed 3P" ) AND E_FMCType="Mobile Only" AND FinalChurnFlag<>"Churn Exception"
@@ -244,4 +254,5 @@ FROM RejoinerColumn f
 )
 
 SELECT Distinct * FROM FullCustomersBase_Flags_Waterfall
---WHERE Month='2022-03-01'
+WHERE Month='2022-02-01'
+
