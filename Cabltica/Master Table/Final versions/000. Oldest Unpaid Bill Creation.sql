@@ -5,7 +5,18 @@ WITH
 FacturaCerrada as(
   SELECT DISTINCT FechaFactura,contrato,RIGHT(CONCAT('0000000000',factura) ,10) as factura,estado
   FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220628_Fact_Enca`
-  where estado ="A"
+)
+
+,PrimeraFactura as(
+select distinct date_trunc(fechafactura,month) as mesfactura,contrato,first_value(factura) over(partition by contrato,date_trunc(fechafactura,month) order by fechafactura asc) as PF
+from facturacerrada
+--Where contrato=84178
+--order by 1,2
+)
+
+,FechaFactura as(
+select DISTINCT f.*,FechaFactura FROM PrimeraFactura f LEFT JOIN FacturaCerrada
+ON PF=Factura
 )
 
 
@@ -16,8 +27,8 @@ FacturaCerrada as(
 )
 
 ,TEST as( --Esta Consulta une una factura con su fecha de pago
-  SELECT DISTINCT f.*,p.* FROM FacturaCerrada f LEFT JOIN PagoFactura p
-  ON safe_cast(factura as string)=fact_aplica
+  SELECT DISTINCT f.*,p.* FROM FechaFactura f LEFT JOIN PagoFactura p
+  ON safe_cast(PF as string)=fact_aplica
 )
 
 ################################################################# Unión Billing CRM ###############################################################################
@@ -26,22 +37,16 @@ FacturaCerrada as(
   SELECT DISTINCT * FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
 )
 
-,Bill_and_Payment_Add AS( -- Esta consulta trae la fecha de la factura y la fecha de pago de la factura actual
+--,Bill_and_Payment_Add AS( -- Esta consulta trae la fecha de la factura y la fecha de pago de la factura actual
   SELECT DISTINCT f.*,t.FechaFactura as Bill_Dt_M0,t.FechaPago as Bill_Payment_Date 
   FROM CRM f LEFT JOIN TEST t
   ON contrato=act_acct_cd AND Date_Trunc(FechaFactura,Month)=Date_Trunc(Fecha_Extraccion,Month)
-)
-
-SELECT * FROM Bill_and_Payment_Add
-Where act_acct_cd=84178
+  --Where act_acct_cd=84178
 order by Fecha_Extraccion
-
-SELECT DISTINCT FECHA_EXTRACCION, ACT_ACCT_CD,count(act_acct_cd) FROM Bill_and_Payment_Add
-group by 1,2
-order by 3 desc
+--)
 
 ,Last_Bill_Pym_Prel as( --Query para crear una tabla sólo con facturas únicas
-  SELECT DISTINCT * except(estado) FROM TEST
+  SELECT DISTINCT * /*except(estado)*/ FROM TEST
 )
 
 ,Last_Pym_CRM as( --Esta consulta ata el pago de la factura anterior al CRM
@@ -51,7 +56,7 @@ order by 3 desc
 )
 
 ,TablaOldest as( --Tabla que trae la Factura actual, la fecha de pago de la factura actual, y la fecha de pago de la factura anterior
-  SELECT DISTINCT a.* except(estado,fact_aplica,factura,FechaFactura), a.FechaFactura as FacturaActual,b.FechaFactura as Prev_Bill
+  SELECT DISTINCT a.* except(/*estado,*/fact_aplica,PF,FechaFactura), a.FechaFactura as FacturaActual,b.FechaFactura as Prev_Bill
   FROM TEST a LEFT JOIN TEST b 
   ON a.contrato=b.contrato AND a.FechaFactura=Date_add(b.FechaFactura, INTERVAL 1 MONTH)
   order by 1
@@ -71,10 +76,10 @@ group by 1
   ON f.contrato=b.contrato
 )
 
---,OldestPreliminary as(
+,OldestPreliminary as(
   SELECT DISTINCT f.*,t.*, FROM Last_Pym_CRM f LEFT JOIN PerpetuityTablaOldest t
   ON act_acct_cd=contrato AND Date_Trunc(FECHA_EXTRACCION,Month)=FacturaActual
---)
+)
 
 ##################################################################### No Bill Emission ###############################################################################################
 
@@ -95,10 +100,10 @@ FROM AllBillsCRM
 Select * From OldestNoBillEmission WHERE OldestNoBill IS NOT NULL
 )
 
---,BillsNoPaymentCRM as(
+,BillsNoPaymentCRM as(
   SELECT DISTINCT f.*,OldestNoBill  FROM OldestPreliminary f LEFT JOIN AllBillsNoPayment b
   ON f.act_acct_cd=b.act_acct_cd AND f.Fecha_Extraccion=b.Fecha_extraccion
---)
+)
 
 
 ,OldestStepOne as(
