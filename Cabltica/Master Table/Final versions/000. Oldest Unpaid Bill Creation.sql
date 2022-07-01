@@ -5,6 +5,7 @@ WITH
 FacturaCerrada as(
   SELECT DISTINCT FechaFactura,contrato,RIGHT(CONCAT('0000000000',factura) ,10) as factura,estado
   FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220628_Fact_Enca`
+  WHERE FechaFactura>"2020-01-01"
 )
 
 ,PrimeraFactura as(
@@ -18,11 +19,19 @@ from facturacerrada
 select DISTINCT f.*,FechaFactura FROM PrimeraFactura f LEFT JOIN FacturaCerrada
 ON PF=Factura
 )
+/*
+select DISTINCT * from FechaFactura
+where PF="0000390903"
 
-
+select distinct PF,count(*) FROM FechaFactura
+group by 1
+order by 2 desc
+*/
 ,PagoFactura as(
   SELECT DISTINCT RIGHT(CONCAT('0000000000',fact_aplica) ,10) as fact_aplica,FechaPago
   FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220628_Fact_Mov`
+  WHERE FechaPago>"2020-01-01"
+  --WHERE estado="C"
   group by 1,2
 )
 
@@ -30,20 +39,27 @@ ON PF=Factura
   SELECT DISTINCT f.*,p.* FROM FechaFactura f LEFT JOIN PagoFactura p
   ON safe_cast(PF as string)=fact_aplica
 )
-
+--/*
+select DISTINCT * from TEST
+where PF="0047283207"
+/*
+select distinct PF,count(*) FROM TEST
+group by 1
+order by 2 desc
+*/
 ################################################################# Unión Billing CRM ###############################################################################
 
 ,CRM as(
   SELECT DISTINCT * FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
 )
 
---,Bill_and_Payment_Add AS( -- Esta consulta trae la fecha de la factura y la fecha de pago de la factura actual
+,Bill_and_Payment_Add AS( -- Esta consulta trae la fecha de la factura y la fecha de pago de la factura actual
   SELECT DISTINCT f.*,t.FechaFactura as Bill_Dt_M0,t.FechaPago as Bill_Payment_Date 
   FROM CRM f LEFT JOIN TEST t
   ON contrato=act_acct_cd AND Date_Trunc(FechaFactura,Month)=Date_Trunc(Fecha_Extraccion,Month)
   --Where act_acct_cd=84178
 order by Fecha_Extraccion
---)
+)
 
 ,Last_Bill_Pym_Prel as( --Query para crear una tabla sólo con facturas únicas
   SELECT DISTINCT * /*except(estado)*/ FROM TEST
