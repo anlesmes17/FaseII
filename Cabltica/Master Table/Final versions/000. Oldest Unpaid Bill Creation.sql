@@ -5,7 +5,7 @@ WITH
 FacturaCerrada as(
   SELECT DISTINCT FechaFactura,contrato,RIGHT(CONCAT('0000000000',factura) ,10) as factura,estado
   FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220628_Fact_Enca`
-  WHERE FechaFactura>"2020-01-01"
+  WHERE FechaFactura>="2021-01-01"
 )
 
 ,PrimeraFactura as(
@@ -22,26 +22,26 @@ ON PF=Factura
 /*
 select DISTINCT * from FechaFactura
 where PF="0000390903"
-
 select distinct PF,count(*) FROM FechaFactura
 group by 1
 order by 2 desc
 */
 ,PagoFactura as(
-  SELECT DISTINCT RIGHT(CONCAT('0000000000',fact_aplica) ,10) as fact_aplica,FechaPago
+  SELECT DISTINCT RIGHT(CONCAT('0000000000',fact_aplica) ,10) as fact_aplica,Min(FechaPago) as FechaPago
   FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220628_Fact_Mov`
-  WHERE FechaPago>"2020-01-01"
+  WHERE FechaPago>="2021-01-01"
   --WHERE estado="C"
-  group by 1,2
+  group by 1--,2
 )
 
 ,TEST as( --Esta Consulta une una factura con su fecha de pago
   SELECT DISTINCT f.*,p.* FROM FechaFactura f LEFT JOIN PagoFactura p
   ON safe_cast(PF as string)=fact_aplica
 )
---/*
-select DISTINCT * from TEST
-where PF="0047283207"
+
+--select DISTINCT * from TEST
+--where PF="0053477286"
+
 /*
 select distinct PF,count(*) FROM TEST
 group by 1
@@ -141,7 +141,6 @@ FROM OldestStepOne
 
 /*
 SELECT DISTINCT FECHA_EXTRACCION, ACT_ACCT_CD,count(act_acct_cd) FROM OldestStepOne
-
 group by 1,2
 order by 3 desc
 */
