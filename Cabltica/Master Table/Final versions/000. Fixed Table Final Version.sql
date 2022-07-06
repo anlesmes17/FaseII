@@ -1,32 +1,40 @@
 --CREATE OR REPLACE TABLE
 --`gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Fixed_DashboardInput_v2` AS
+
+
 ###################################### Fixed Useful Fields #################################################################
 WITH 
 UsefulFields AS(
 SELECT DISTINCT DATE_TRUNC (safe_cast(FECHA_EXTRACCION as date), MONTH) AS Month,FECHA_EXTRACCION, act_acct_cd, pd_vo_prod_id, pd_vo_prod_nm, PD_TV_PROD_ID,
-PD_TV_PROD_CD, pd_bb_prod_id, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE, Min(ACT_ACCT_INST_DT) as MinInst, CST_CHRN_DT AS ChurnDate, DATE_DIFF(safe_cast(FECHA_EXTRACCION as date), safe_cast(OLDEST_UNPAID_BILL_DT as date),DAY) AS MORA, ACT_CONTACT_MAIL_1,
-round(VO_FI_TOT_MRC_AMT,0) AS mrcVO, round(BB_FI_TOT_MRC_AMT,0) AS mrcBB, round(TV_FI_TOT_MRC_AMT,0) AS mrcTV,round((VO_FI_TOT_MRC_AMT + BB_FI_TOT_MRC_AMT + TV_FI_TOT_MRC_AMT),0) as avgmrc, round(TOT_BILL_AMT,0) AS Bill, ACT_ACCT_SIGN_DT,
+PD_TV_PROD_CD, pd_bb_prod_id, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE, Min(ACT_ACCT_INST_DT) as MinInst, CST_CHRN_DT AS ChurnDate, DATE_DIFF(safe_cast(FECHA_EXTRACCION as date), safe_cast(OLDEST_UNPAID_BILL_DT as date),DAY) AS MORA, ACT_CONTACT_MAIL_1,round(VO_FI_TOT_MRC_AMT,0) AS mrcVO, round(BB_FI_TOT_MRC_AMT,0) AS mrcBB, round(TV_FI_TOT_MRC_AMT,0) AS mrcTV,round((VO_FI_TOT_MRC_AMT + BB_FI_TOT_MRC_AMT + TV_FI_TOT_MRC_AMT),0) as avgmrc, round(TOT_BILL_AMT,0) AS Bill, ACT_ACCT_SIGN_DT,
+
 CASE WHEN pd_vo_prod_id IS NOT NULL THEN 1 ELSE 0 END AS RGU_VO,
 CASE WHEN pd_tv_prod_cd IS NOT NULL THEN 1 ELSE 0 END AS RGU_TV,
 CASE WHEN pd_bb_prod_id IS NOT NULL THEN 1 ELSE 0 END AS RGU_BB,
+
 CASE 
-WHEN PD_VO_PROD_ID IS NOT NULL AND PD_BB_PROD_NM IS NOT NULL AND PD_TV_PROD_CD IS NOT NULL THEN "3P"
-WHEN PD_VO_PROD_ID IS NULL AND PD_BB_PROD_NM IS NOT NULL AND PD_TV_PROD_CD IS NOT NULL THEN "2P"
-WHEN PD_VO_PROD_ID IS NOT NULL AND PD_BB_PROD_NM IS NULL AND PD_TV_PROD_CD IS NOT NULL THEN"2P"
-WHEN PD_VO_PROD_ID IS NOT NULL AND PD_BB_PROD_NM IS NOT NULL AND PD_TV_PROD_CD IS NULL THEN"2P"
+WHEN PD_VO_PROD_ID IS NOT NULL AND PD_BB_PROD_ID IS NOT NULL AND PD_TV_PROD_ID IS NOT NULL THEN "3P"
+WHEN PD_VO_PROD_ID IS NULL AND PD_BB_PROD_ID IS NOT NULL AND PD_TV_PROD_ID IS NOT NULL THEN "2P"
+WHEN PD_VO_PROD_ID IS NOT NULL AND PD_BB_PROD_ID IS NULL AND PD_TV_PROD_ID IS NOT NULL THEN"2P"
+WHEN PD_VO_PROD_ID IS NOT NULL AND PD_BB_PROD_ID IS NOT NULL AND PD_TV_PROD_ID IS NULL THEN"2P"
 ELSE "1P" END AS MIX
+
 FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
 GROUP BY Month, FECHA_EXTRACCION, ACT_ACCT_cd, PD_VO_PROD_ID,pd_vo_prod_nm, PD_TV_PROD_ID,
-PD_TV_PROD_CD, pd_bb_prod_id, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE,CST_CHRN_DT, OLDEST_UNPAID_BILL_DT, VO_FI_TOT_MRC_AMT, BB_FI_TOT_MRC_AMT, TV_FI_TOT_MRC_AMT, VO_FI_TOT_MRC_AMT, BB_FI_TOT_MRC_AMT, TV_FI_TOT_MRC_AMT, ACT_CONTACT_MAIL_1,
-mrcVO,mrcBB,mrcTV, Bill,ACT_ACCT_SIGN_DT
+PD_TV_PROD_CD, pd_bb_prod_id, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE,CST_CHRN_DT, OLDEST_UNPAID_BILL_DT, VO_FI_TOT_MRC_AMT, BB_FI_TOT_MRC_AMT, TV_FI_TOT_MRC_AMT, VO_FI_TOT_MRC_AMT, BB_FI_TOT_MRC_AMT, TV_FI_TOT_MRC_AMT, ACT_CONTACT_MAIL_1,mrcVO,mrcBB,mrcTV, Bill,ACT_ACCT_SIGN_DT
 )
+
 ,CustomerBase_BOM AS(
-    SELECT DISTINCT DATE_TRUNC(SAFE_CAST(Fecha_Extraccion AS DATE),MONTH) AS Month, Fecha_Extraccion AS B_DATE, c.act_acct_cd AS AccountBOM, pd_vo_prod_id as B_VO_id, pd_vo_prod_nm as B_VO_nm, pd_tv_prod_id AS B_TV_id, 
-    pd_tv_prod_cd as B_TV_nm, pd_bb_prod_id as B_BB_id, pd_bb_prod_nm as B_BB_nm, RGU_VO as B_RGU_VO, RGU_TV as B_RGU_TV, RGU_BB AS B_RGU_BB, fi_outst_age as B_Overdue, C_CUST_AGE as B_Tenure, MinInst as B_MinInst, MIX AS B_MIX,
-    RGU_VO + RGU_TV + RGU_BB AS B_NumRGUs, Tipo_Tecnologia AS B_Tech_Type, MORA AS B_MORA, mrcVO as B_VO_MRC, mrcBB as B_BB_MRC, mrcTV as B_TV_MRC, avgmrc as B_AVG_MRC, BILL AS B_BILL_AMT,ACT_ACCT_SIGN_DT AS B_ACT_ACCT_SIGN_DT,
+    SELECT DISTINCT DATE_TRUNC(SAFE_CAST(Fecha_Extraccion AS DATE),MONTH) AS Month, Fecha_Extraccion AS B_DATE, c.act_acct_cd AS AccountBOM, pd_vo_prod_id as B_VO_id, 
+    pd_vo_prod_nm as B_VO_nm, pd_tv_prod_id AS B_TV_id, pd_tv_prod_cd as B_TV_nm, pd_bb_prod_id as B_BB_id, pd_bb_prod_nm as B_BB_nm, RGU_VO as B_RGU_VO, RGU_TV as B_RGU_TV, 
+    RGU_BB AS B_RGU_BB, fi_outst_age as B_Overdue, C_CUST_AGE as B_Tenure, MinInst as B_MinInst, MIX AS B_MIX,RGU_VO + RGU_TV + RGU_BB AS B_NumRGUs, 
+    Tipo_Tecnologia AS B_Tech_Type, MORA AS B_MORA, mrcVO as B_VO_MRC, mrcBB as B_BB_MRC, mrcTV as B_TV_MRC, avgmrc as B_AVG_MRC,
+    BILL AS B_BILL_AMT,ACT_ACCT_SIGN_DT AS B_ACT_ACCT_SIGN_DT,
+
     CASE WHEN (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 0 AND RGU_BB = 1) THEN "1P"
     WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 1) OR (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 1) THEN "2P"
     WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 1) THEN "3P" END AS B_Bundle_Type,
+
     CASE WHEN (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 0) THEN "VO"
     WHEN (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 0) THEN "TV"
     WHEN (RGU_VO = 0 AND RGU_TV = 0 AND RGU_BB = 1) THEN "BB"
@@ -34,9 +42,11 @@ mrcVO,mrcBB,mrcTV, Bill,ACT_ACCT_SIGN_DT
     WHEN (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 1) THEN "BB+TV"
     WHEN (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 1) THEN "BB+VO"
     WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 1) THEN "BB+TV+VO" END AS B_BundleName,
+
     CASE WHEN RGU_BB= 1 THEN act_acct_cd ELSE NULL END As BB_RGU_BOM,
     CASE WHEN RGU_TV= 1 THEN act_acct_cd ELSE NULL END As TV_RGU_BOM,
     CASE WHEN RGU_VO= 1 THEN act_acct_cd ELSE NULL END As VO_RGU_BOM,
+    
     CASE WHEN (RGU_BB = 1 AND RGU_TV = 0 AND RGU_VO = 0) OR  (RGU_BB = 0 AND RGU_TV = 1 AND RGU_VO = 0) OR (RGU_BB = 0 AND RGU_TV = 0 AND RGU_VO = 1)  THEN '1P'
     WHEN (RGU_BB = 1 AND RGU_TV = 1 AND RGU_VO = 0) OR (RGU_BB = 1 AND RGU_TV = 0 AND RGU_VO = 1) OR (RGU_BB = 0 AND RGU_TV = 1 AND RGU_VO = 1) THEN '2P'
     WHEN (RGU_BB = 1 AND RGU_TV = 1 AND RGU_VO = 1) THEN '3P' END AS B_MixCode_Adj,
@@ -52,7 +62,7 @@ mrcVO,mrcBB,mrcTV, Bill,ACT_ACCT_SIGN_DT
     CASE
     WHEN B_Tenure <=6 THEN "Early Tenure"
     WHEN B_Tenure >6 THEN "Late Tenure"
-    ELSE NULL END AS B_TenureType
+    ELSE NULL END AS B_FixedTenureSegment
     FROM CustomerBase_BOM 
 )
 ,CustomerBase_EOM AS(
@@ -87,7 +97,7 @@ mrcVO,mrcBB,mrcTV, Bill,ACT_ACCT_SIGN_DT
     ELSE "HFC" END AS E_TechAdj, CASE
     WHEN E_Tenure <=6 THEN "Early Tenure"
     WHEN E_Tenure >6 THEN "Late Tenure"
-    ELSE NULL END AS E_TenureType
+    ELSE NULL END AS E_FixedTenureSegment
     FROM CustomerBase_EOM 
 )
 ,FixedCustomerBase AS(
@@ -100,8 +110,8 @@ mrcVO,mrcBB,mrcTV, Bill,ACT_ACCT_SIGN_DT
   END AS Fixed_Account,
    CASE WHEN accountBOM IS NOT NULL THEN 1 ELSE 0 END AS ActiveBOM,
    CASE WHEN accountEOM IS NOT NULL THEN 1 ELSE 0 END AS ActiveEOM,
-   B_Date, B_VO_id, B_VO_nm, B_TV_id, B_TV_nm, B_BB_id, B_BB_nm, B_RGU_VO, B_RGU_TV, B_RGU_BB, B_NumRGUs, B_Overdue, B_Tenure, B_MinInst, B_Bundle_Type, B_BundleName,B_MIX, B_TechAdj,B_TenureType, B_MORA, B_VO_MRC, B_BB_MRC, B_TV_MRC, B_AVG_MRC, B_BILL_AMT,B_ACT_ACCT_SIGN_DT,BB_RGU_BOM,TV_RGU_BOM,VO_RGU_BOM,B_MixCode_Adj,
-   E_Date, E_VO_id, E_VO_nm, E_TV_id, E_TV_nm, E_BB_id, E_BB_nm, E_RGU_VO, E_RGU_TV, E_RGU_BB, E_NumRGUs, E_Overdue, E_Tenure, E_MinInst, E_Bundle_Type, E_BundleName,E_MIX, E_TechAdj,E_TenureType, E_MORA, E_VO_MRC, E_BB_MRC, E_TV_MRC, E_AVG_MRC, E_BILL_AMT,E_ACT_ACCT_SIGN_DT,BB_RGU_EOM,TV_RGU_EOM,VO_RGU_EOM,E_MixCode_Adj,
+   B_Date, B_VO_id, B_VO_nm, B_TV_id, B_TV_nm, B_BB_id, B_BB_nm, B_RGU_VO, B_RGU_TV, B_RGU_BB, B_NumRGUs, B_Overdue, B_Tenure, B_MinInst, B_Bundle_Type, B_BundleName,B_MIX, B_TechAdj,B_FixedTenureSegment, B_MORA, B_VO_MRC, B_BB_MRC, B_TV_MRC, B_AVG_MRC, B_BILL_AMT,B_ACT_ACCT_SIGN_DT,BB_RGU_BOM,TV_RGU_BOM,VO_RGU_BOM,B_MixCode_Adj,
+   E_Date, E_VO_id, E_VO_nm, E_TV_id, E_TV_nm, E_BB_id, E_BB_nm, E_RGU_VO, E_RGU_TV, E_RGU_BB, E_NumRGUs, E_Overdue, E_Tenure, E_MinInst, E_Bundle_Type, E_BundleName,E_MIX, E_TechAdj,E_FixedTenureSegment, E_MORA, E_VO_MRC, E_BB_MRC, E_TV_MRC, E_AVG_MRC, E_BILL_AMT,E_ACT_ACCT_SIGN_DT,BB_RGU_EOM,TV_RGU_EOM,VO_RGU_EOM,E_MixCode_Adj,
   FROM FinalCustomerBase_BOM b FULL OUTER JOIN FinalCustomerBase_EOM e ON b.AccountBOM = e.AccountEOM AND b.Month = e.Month
 )
 
@@ -132,7 +142,7 @@ mrcVO,mrcBB,mrcTV, Bill,ACT_ACCT_SIGN_DT
     CASE 
     WHEN MainMovement="Same RGUs" AND (E_BILL_AMT - B_BILL_AMT) > 0 THEN "1. Up-spin" 
     WHEN MainMovement="Same RGUs" AND (E_BILL_AMT - B_BILL_AMT) < 0 THEN "2. Down-spin" 
-    END AS SpinMovement
+    ELSE "3. No Spin" END AS SpinMovement
     FROM MAINMOVEMENTBASE b
 )
 ########################################## Fixed Churn Flags #################################################################
@@ -166,7 +176,7 @@ FROM ServiceOrders
 ,CHURNTYPEFLAGSO AS(
     SELECT DISTINCT c. CONTRATOSO, c.PrimerChurnSO,
     CASE WHEN t.CONTRATOSO IS NULL THEN "Voluntario"
-    WHEN t.CONTRATOSO IS NOT NULL THEN "Involuntario" END AS FixedChurnType
+    WHEN t.CONTRATOSO IS NOT NULL THEN "Involuntario" END AS FixedChurnTypeFlag
     FROM PRIMERCHURNSO c LEFT JOIN CHURNERSINVOLUNTARIOS t ON c.CONTRATOSO = t.CONTRATOSO AND t.FECHA_APERTURA = c.PrimerChurnSO
 )
 ,CustomerBaseWithChurners AS(
@@ -174,7 +184,12 @@ FROM ServiceOrders
  FROM SPINMOVEMENTBASE c 
 )
 ,CRUCECHURNERSCRM AS(
- SELECT DISTINCT C.* except(B_TV_id, E_TV_id,B_BB_id, E_BB_id), FixedChurnType, 
+ SELECT DISTINCT C.* except(B_TV_id, E_TV_id,B_BB_id, E_BB_id), FixedChurnTypeFlag,
+ CASE WHEN FixedChurnTypeFlag IS NOT NULL THEN "Fixed Churner" ELSE NULL END AS FixedChurnFlag,
+ CASE 
+ WHEN FixedChurnTypeFlag IS NOT NULL AND B_FixedTenureSegment="Late Tenure" THEN "1. Late-Tenure Churner"
+ WHEN FixedChurnTypeFlag IS NOT NULL AND B_FixedTenureSegment="Early Tenure" THEN "2. Early-Tenure Churner"
+ ELSE "3. Non-Churner" END AS ChurnTenureSegment
  FROM CustomerBaseWithChurners  c LEFT JOIN CHURNTYPEFLAGSO s ON safe_cast(s.Contratoso as string)= act_acct_cd AND date_trunc(primerchurnSO, month) = Fixed_Month
 )
 ########################################## Rejoiners #####################################################
