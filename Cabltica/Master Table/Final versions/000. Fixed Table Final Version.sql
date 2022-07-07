@@ -147,51 +147,66 @@ PD_TV_PROD_CD, pd_bb_prod_id, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE,CST_CHRN_D
 )
 ########################################## Fixed Churn Flags #################################################################
 ------------------------------------------Voluntary & Involuntary-------------------------------------------------------------
-,CHURNERSSO AS
-(SELECT DISTINCT RIGHT(CONCAT('0000000000',NOMBRE_CONTRATO) ,10) AS CONTRATOSO, FECHA_APERTURA,
- FROM ServiceOrders 
+
+,MAX_SO_CHURN AS(
+ SELECT DISTINCT RIGHT(CONCAT('0000000000',NOMBRE_CONTRATO) ,10) AS CONTRATOSO, DATE_TRUNC(MAX(FECHA_APERTURA),Month) as DeinstallationMonth, MAX(FECHA_APERTURA) AS FECHA_CHURN
+ FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_ORDENES_SERVICIO_2021-01_A_2022-05_D`
  WHERE
   TIPO_ORDEN = "DESINSTALACION" 
   AND (ESTADO <> "CANCELADA" OR ESTADO <> "ANULADA")
  AND FECHA_APERTURA IS NOT NULL
- )
-,PRIMERCHURNSO AS
-(SELECT DISTINCT RIGHT(CONCAT('0000000000',NOMBRE_CONTRATO) ,10) AS CONTRATOSO, Max(FECHA_APERTURA) as PrimerChurnSO,
-FROM ServiceOrders
+ GROUP BY 1
+)
+
+,CHURNERSSO AS(
+  SELECT DISTINCT RIGHT(CONCAT('0000000000',NOMBRE_CONTRATO) ,10) AS CONTRATOSO, DATE_TRUNC(FECHA_APERTURA,Month) as DeinstallationMonth,
+  CASE WHEN submotivo="MOROSIDAD" THEN "Involuntary"
+  WHEN submotivo <> "MOROSIDAD" THEN "Voluntary"
+  END AS Submotivo
+ FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_ORDENES_SERVICIO_2021-01_A_2022-05_D` t
+ INNER JOIN MAX_SO_CHURN m on RIGHT(CONCAT('0000000000',t.NOMBRE_CONTRATO) ,10) = m.contratoso and fecha_apertura = fecha_churn
  WHERE
   TIPO_ORDEN = "DESINSTALACION" 
   AND (ESTADO <> "CANCELADA" OR ESTADO <> "ANULADA")
  AND FECHA_APERTURA IS NOT NULL
- GROUP BY CONTRATOSO
- )
-,CHURNERSINVOLUNTARIOS AS
-(SELECT DISTINCT RIGHT(CONCAT('0000000000',NOMBRE_CONTRATO) ,10) AS CONTRATOSO, FECHA_APERTURA,
- FROM ServiceOrders
- WHERE
-  TIPO_ORDEN = "DESINSTALACION" 
-  AND (ESTADO <> "CANCELADA" OR ESTADO <> "ANULADA")
-  AND SUBMOTIVO = "MOROSIDAD"
- AND FECHA_APERTURA IS NOT NULL
- )
-,CHURNTYPEFLAGSO AS(
-    SELECT DISTINCT c. CONTRATOSO, c.PrimerChurnSO,
-    CASE WHEN t.CONTRATOSO IS NULL THEN "Voluntario"
-    WHEN t.CONTRATOSO IS NOT NULL THEN "Involuntario" END AS FixedChurnTypeFlag
-    FROM PRIMERCHURNSO c LEFT JOIN CHURNERSINVOLUNTARIOS t ON c.CONTRATOSO = t.CONTRATOSO AND t.FECHA_APERTURA = c.PrimerChurnSO
 )
-,CustomerBaseWithChurners AS(
- SELECT DISTINCT c.*, RIGHT(CONCAT('0000000000',Fixed_Account) ,10) AS act_acct_cd
- FROM SPINMOVEMENTBASE c 
+
+,MaximaFecha as(
+  select distinct RIGHT(CONCAT('0000000000',act_acct_cd) ,10) as act_acct_cd, max(date_trunc(fecha_extraccion,Month)) as MaxFecha FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
+  group by 1
 )
-,CRUCECHURNERSCRM AS(
- SELECT DISTINCT C.* except(B_TV_id, E_TV_id,B_BB_id, E_BB_id), FixedChurnTypeFlag,
- CASE WHEN FixedChurnTypeFlag IS NOT NULL THEN "Fixed Churner" ELSE NULL END AS FixedChurnFlag,
- CASE 
- WHEN FixedChurnTypeFlag IS NOT NULL AND B_FixedTenureSegment="Late Tenure" THEN "1. Late-Tenure Churner"
- WHEN FixedChurnTypeFlag IS NOT NULL AND B_FixedTenureSegment="Early Tenure" THEN "2. Early-Tenure Churner"
- ELSE "3. Non-Churner" END AS ChurnTenureSegment
- FROM CustomerBaseWithChurners  c LEFT JOIN CHURNTYPEFLAGSO s ON safe_cast(s.Contratoso as string)= act_acct_cd AND date_trunc(primerchurnSO, month) = Fixed_Month
+
+,ChurnersJoin as(
+select Distinct f.Fecha_Extraccion,f.act_acct_cd,Submotivo,DeinstallationMonth,MaxFecha FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022` f
+left join churnersso c on contratoso=RIGHT(CONCAT('0000000000',f.act_acct_cd) ,10) and date_trunc(fecha_extraccion,Month)=DeinstallationMonth
+left join MaximaFecha m on RIGHT(CONCAT('0000000000',f.act_acct_cd) ,10)=RIGHT(CONCAT('0000000000',m.act_acct_cd) ,10)
 )
+
+,MaxFechaJoin as(
+select DeinstallationMonth as DxMonth,act_acct_cd,Submotivo,MaxFecha,DeinstallationMonth
+--CASE WHEN date_diff(MaxFecha,DeinstallationMonth,Month)<=11 THEN Submotivo
+--CASE WHEN Submotivo is not null then submotivo
+--ELSE NULL END AS AllChurners
+FROM Churnersjoin
+WHERE Submotivo IS NOT NULL
+)
+
+
+,ChurnersFixedTable as(
+select f.*,Submotivo,MaxFecha,DeinstallationMonth FROM SPINMOVEMENTBASE f left join MaxFechaJoin b
+on Fixed_Month=date_trunc(b.DxMonth,Month) and RIGHT(CONCAT('0000000000',Fixed_Account) ,10)=RIGHT(CONCAT('0000000000',b.act_acct_cd) ,10)
+)
+
+,FinalChurners as(
+select f.*,
+CASE 
+WHEN date_diff(MaxFecha,DeinstallationMonth,Month)<=2 THEN Submotivo
+--WHEN Submotivo IS NOT NULL AND B_ACT_ACCT_SIGN_DT<>B_ACT_ACCT_SIGN_DT THEN Submotivo
+ELSE NULL END AS FixedChurnTypeFlag
+FROM ChurnersFixedTable f
+)
+
+
 ########################################## Rejoiners #####################################################
 ,InactiveUsersMonth AS (
 SELECT DISTINCT Fixed_Month AS ExitMonth, Fixed_Account,DATE_ADD(Fixed_Month, INTERVAL 1 MONTH) AS RejoinerMonth
@@ -217,10 +232,18 @@ GROUP BY 1,2,3,4
 SELECT DISTINCT f.*,Fixed_PR
 ,CASE WHEN Fixed_PR=1 AND MainMovement="Come Back to Life"
 THEN 1 ELSE 0 END AS Fixed_Rejoiner
-FROM CRUCECHURNERSCRM f LEFT JOIN FixedRejoinerFebPopulation r ON f.Fixed_Account=r.Fixed_Account AND f.Fixed_Month=SAFE_CAST(r.Month AS DATE)
+FROM FinalChurners f LEFT JOIN FixedRejoinerFebPopulation r ON f.Fixed_Account=r.Fixed_Account AND f.Fixed_Month=SAFE_CAST(r.Month AS DATE)
 )
 
---,FinalTable as(
+,FinalTable as(
 SELECT *, CONCAT(ifnull(B_VO_nm,""),ifnull(B_TV_nm,""),ifnull(B_BB_nm,"")) AS B_PLAN,CONCAT(ifnull(E_VO_nm,""),ifnull(E_TV_nm,""),ifnull(E_BB_nm,"")) AS E_PLAN
 FROM FullFixedBase_Rejoiners
---)
+where FixedChurnTypeFlag is not null
+)
+
+select distinct Fixed_Month,count(distinct Fixed_Account) as Churners,sum(B_NumRGUs) as RGUs
+FROM FinalTable
+
+where fixedchurntypeflag is not null
+group by 1--,2
+order by 1,2
