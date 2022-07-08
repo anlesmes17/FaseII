@@ -59,32 +59,48 @@ group by 1
 
 ##################################################################### No Bill Emission ###############################################################################################
 
+,FirstAndLastBillsWithPayment as(
+  select distinct
+  first_value(mesfactura) over (partition by Contrato order by FechaPago asc) as MonthFirstPaidBill,
+  first_value(FechaPago) over (partition by Contrato order by FechaPago asc) as PaymentFirstPaidBill,
+  first_value(mesfactura) over (partition by Contrato order by FechaPago desc) as MonthLastPaidBill,
+  first_value(FechaPago) over (partition by Contrato order by FechaPago desc) as PaymentLastPaidBill,
+  contrato
+  From TEST
+  where fechapago is not null
+)
+
+,FistPaidBillIntegration as(
+  select f.*,MonthFirstPaidBill,PaymentFirstPaidBill,MonthLastPaidBill,PaymentLastPaidBill, From PerpetuityTablaOldest f left join FirstAndLastBillsWithPayment
+  ON contrato=act_acct_cd
+)
 ,OldestStepOne as(
   SELECT DISTINCT f.*, CASE
+  WHEN Fecha_Extraccion<date(PaymentFirstPaidBill) and Fecha_Extraccion>=MonthFirstPaidBill THEN MonthFirstPaidBill
   WHEN Fecha_Extraccion>=DATE(Bill_Payment_Date) THEN NULL
   WHEN DATE(Bill_Payment_Date)>Fecha_Extraccion AND Payment_Prev_Bill IS NULL AND Prev_Bill IS NULL THEN Bill_Dt_M0
   WHEN Fecha_Extraccion<DATE(Bill_Payment_Date) AND Fecha_Extraccion<DATE(Payment_Prev_Bill) THEN Prev_Bill
   WHEN FECHA_EXTRACCION>=DATE(Payment_Prev_Bill) AND Fecha_Extraccion<=DATE(Bill_Payment_Date) THEN Bill_Dt_M0
   WHEN Bill_Payment_Date IS NULL AND Payment_Prev_Bill IS NOT NUll AND FECHA_EXTRACCION<DATE(Payment_Prev_Bill) THEN Prev_Bill
   WHEN Bill_DT_M0 IS NOT NULL THEN OldestPerpetuity
+  WHEN Fecha_Extraccion<date(PaymentLastPaidBill) and Fecha_Extraccion>=MonthLastPaidBill THEN MonthLastPaidBill
   ELSE Null END AS OLDEST_UNPAID
-  FROM PerpetuityTablaOldest f
+  FROM FistPaidBillIntegration f
 )
 
 ,FI_Outst_Age as(
-Select Distinct * except(Bill_Payment_Date,Payment_Prev_Bill,Prev_Bill,OldestPerpetuity),date_diff(Fecha_Extraccion,OLDEST_UNPAID,Day) as Outstanding_Days
+Select Distinct * except(Bill_Payment_Date,Payment_Prev_Bill,Prev_Bill,OldestPerpetuity,MonthFirstPaidBill,PaymentFirstPaidBill,MonthLastPaidBill,PaymentLastPaidBill)
+,date_diff(Fecha_Extraccion,OLDEST_UNPAID,Day) as Outstanding_Days
 FROM OldestStepOne
 )
 
 --select * From FI_Outst_Age
+--where outstanding_days>60
+
 
 select * FROM FI_Outst_Age
 where act_acct_cd=1285876
 order by Fecha_Extraccion
-
-
-
-
 
 
 
