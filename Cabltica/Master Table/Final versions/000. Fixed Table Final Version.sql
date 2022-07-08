@@ -126,8 +126,8 @@ PD_TV_PROD_CD, pd_bb_prod_id, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE,CST_CHRN_D
  WHEN (E_NumRGUs - B_NumRGUs)=0 THEN "Same RGUs"
  WHEN (E_NumRGUs - B_NumRGUs)>0 THEN "Upsell"
  WHEN (E_NumRGUs - B_NumRGUs)<0 then "Downsell"
- WHEN (B_NumRGUs IS NULL AND E_NumRGUs > 0 AND DATE_TRUNC (E_ACT_ACCT_SIGN_DT, MONTH) <> '2022-02-01') THEN "Come Back to Life"
- WHEN (B_NumRGUs IS NULL AND E_NumRGUs > 0 AND DATE_TRUNC (E_ACT_ACCT_SIGN_DT, MONTH) = '2022-02-01') THEN "New Customer"
+ WHEN (B_NumRGUs IS NULL AND E_NumRGUs > 0 AND DATE_TRUNC (E_ACT_ACCT_SIGN_DT, MONTH) <> Fixed_Month) THEN "Come Back to Life"
+ WHEN (B_NumRGUs IS NULL AND E_NumRGUs > 0 AND DATE_TRUNC (E_ACT_ACCT_SIGN_DT, MONTH) = Fixed_Month) THEN "New Customer"
  WHEN ActiveBOM = 1 AND ActiveEOM = 0 THEN "Loss"
  END AS MainMovement,
  CASE WHEN ActiveBOM = 0 AND ActiveEOM = 1 AND DATE_TRUNC(E_MinInst,Month) = "2022-02-01" THEN "Feb Gross-Ads"
@@ -159,7 +159,7 @@ PD_TV_PROD_CD, pd_bb_prod_id, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE,CST_CHRN_D
 )
 
 ,CHURNERSSO AS(
-  SELECT DISTINCT RIGHT(CONCAT('0000000000',NOMBRE_CONTRATO) ,10) AS CONTRATOSO, DATE_TRUNC(FECHA_APERTURA,Month) as DeinstallationMonth,
+  SELECT DISTINCT RIGHT(CONCAT('0000000000',NOMBRE_CONTRATO) ,10) AS CONTRATOSO, DATE_TRUNC(FECHA_APERTURA,Month) as DeinstallationMonth,Fecha_apertura as DeinstallationDate,
   CASE WHEN submotivo="MOROSIDAD" THEN "Involuntary"
   WHEN submotivo <> "MOROSIDAD" THEN "Voluntary"
   END AS Submotivo
@@ -172,38 +172,28 @@ PD_TV_PROD_CD, pd_bb_prod_id, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE,CST_CHRN_D
 )
 
 ,MaximaFecha as(
-  select distinct RIGHT(CONCAT('0000000000',act_acct_cd) ,10) as act_acct_cd, max(date_trunc(fecha_extraccion,Month)) as MaxFecha FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
+  select distinct RIGHT(CONCAT('0000000000',act_acct_cd) ,10) as act_acct_cd, max(fecha_extraccion) as MaxFecha FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
   group by 1
 )
 
 ,ChurnersJoin as(
-select Distinct f.Fecha_Extraccion,f.act_acct_cd,Submotivo,DeinstallationMonth,MaxFecha FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022` f
+select Distinct f.Fecha_Extraccion,f.act_acct_cd,Submotivo,DeinstallationMonth,DeinstallationDate,MaxFecha FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022` f
 left join churnersso c on contratoso=RIGHT(CONCAT('0000000000',f.act_acct_cd) ,10) and date_trunc(fecha_extraccion,Month)=DeinstallationMonth
 left join MaximaFecha m on RIGHT(CONCAT('0000000000',f.act_acct_cd) ,10)=RIGHT(CONCAT('0000000000',m.act_acct_cd) ,10)
 )
 
 ,MaxFechaJoin as(
-select DeinstallationMonth as DxMonth,act_acct_cd,Submotivo,MaxFecha,DeinstallationMonth
---CASE WHEN date_diff(MaxFecha,DeinstallationMonth,Month)<=11 THEN Submotivo
---CASE WHEN Submotivo is not null then submotivo
---ELSE NULL END AS AllChurners
+select Fecha_extraccion,DeinstallationMonth as DxMonth,act_acct_cd,
+CASE WHEN date_diff(MaxFecha,DeinstallationMonth,Month)<=2 THEN Submotivo
+ELSE NULL END AS FixedChurnTypeFlag
 FROM Churnersjoin
 WHERE Submotivo IS NOT NULL
 )
 
 
 ,ChurnersFixedTable as(
-select f.*,Submotivo,MaxFecha,DeinstallationMonth FROM SPINMOVEMENTBASE f left join MaxFechaJoin b
+select f.*,FixedChurnTypeFlag FROM SPINMOVEMENTBASE f left join MaxFechaJoin b
 on Fixed_Month=date_trunc(b.DxMonth,Month) and RIGHT(CONCAT('0000000000',Fixed_Account) ,10)=RIGHT(CONCAT('0000000000',b.act_acct_cd) ,10)
-)
-
-,FinalChurners as(
-select f.*,
-CASE 
-WHEN date_diff(MaxFecha,DeinstallationMonth,Month)<=2 THEN Submotivo
---WHEN Submotivo IS NOT NULL AND B_ACT_ACCT_SIGN_DT<>B_ACT_ACCT_SIGN_DT THEN Submotivo
-ELSE NULL END AS FixedChurnTypeFlag
-FROM ChurnersFixedTable f
 )
 
 
@@ -232,18 +222,14 @@ GROUP BY 1,2,3,4
 SELECT DISTINCT f.*,Fixed_PR
 ,CASE WHEN Fixed_PR=1 AND MainMovement="Come Back to Life"
 THEN 1 ELSE 0 END AS Fixed_Rejoiner
-FROM FinalChurners f LEFT JOIN FixedRejoinerFebPopulation r ON f.Fixed_Account=r.Fixed_Account AND f.Fixed_Month=SAFE_CAST(r.Month AS DATE)
+FROM ChurnersFixedTable f LEFT JOIN FixedRejoinerFebPopulation r ON f.Fixed_Account=r.Fixed_Account AND f.Fixed_Month=SAFE_CAST(r.Month AS DATE)
 )
 
 ,FinalTable as(
-SELECT *, CONCAT(ifnull(B_VO_nm,""),ifnull(B_TV_nm,""),ifnull(B_BB_nm,"")) AS B_PLAN,CONCAT(ifnull(E_VO_nm,""),ifnull(E_TV_nm,""),ifnull(E_BB_nm,"")) AS E_PLAN
+SELECT *,CASE
+WHEN FixedChurnTypeFlag is not null THEN b_NumRGUs
+WHEN MainMovement="Downsell" THEN (B_NumRGUs - ifnull(E_NumRGUs,0))
+ELSE NULL END AS RGU_Churn,
+CONCAT(ifnull(B_VO_nm,""),ifnull(B_TV_nm,""),ifnull(B_BB_nm,"")) AS B_PLAN,CONCAT(ifnull(E_VO_nm,""),ifnull(E_TV_nm,""),ifnull(E_BB_nm,"")) AS E_PLAN
 FROM FullFixedBase_Rejoiners
-where FixedChurnTypeFlag is not null
 )
-
-select distinct Fixed_Month,count(distinct Fixed_Account) as Churners,sum(B_NumRGUs) as RGUs
-FROM FinalTable
-
-where fixedchurntypeflag is not null
-group by 1--,2
-order by 1,2
