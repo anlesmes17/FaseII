@@ -4,12 +4,11 @@ WITH
 ##################################################################### Billing Tables #####################################################################
 Bills as(--Database with all bills
   SELECT DISTINCT date(Fecha_Fact) as FechaFactura,safe_cast(contrato as int64) as contrato,RIGHT(CONCAT('0000000000',factura) ,10) as factura,
-  tipodoc,cod_sucursal,cod_tiposervicio
   FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.Fact_Enca_New`
 )
 
 ,FirstBill as(
-select distinct date_trunc(fechafactura,month) as mesfactura,contrato,tipodoc,cod_sucursal,cod_tiposervicio,
+select distinct date_trunc(fechafactura,month) as mesfactura,contrato,
 first_value(factura) over(partition by contrato,date_trunc(fechafactura,month) order by fechafactura asc) as PF
 from Bills
 )
@@ -21,14 +20,13 @@ ON PF=Factura
 
 ,PagoFactura as(--Database with payments of all bills
   SELECT DISTINCT RIGHT(CONCAT('0000000000',fact_aplica) ,10) as fact_aplica,Min(Fecha_mov) as FechaPago,
-  tipodoc,cod_sucursal,cod_tiposervicio,
   FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.Fact_Mov_New`
-  group by 1,3,4,5
+  group by 1--,3,4,5
 )
 
 ,CompleteBill as( --This query unifies bills with payments
   SELECT DISTINCT f.*,p.* FROM BillDate f LEFT JOIN PagoFactura p
-  ON safe_cast(PF as string)=fact_aplica and f.tipodoc=p.tipodoc and f.cod_sucursal=p.cod_sucursal
+  ON safe_cast(PF as string)=fact_aplica 
 )
 
 ############################################################ Unión Billing CRM ########################################################################
@@ -74,7 +72,7 @@ group by 1
 )
 
 ,FistPaidBillIntegration as(
-  select f.*,MonthFirstPaidBill,PaymentFirstPaidBill,MonthLastPaidBill,PaymentLastPaidBill, From PerpetuityTablaOldest f left join FirstAndLastBillsWithPayment
+  select distinct f.*,MonthFirstPaidBill,PaymentFirstPaidBill,MonthLastPaidBill,PaymentLastPaidBill, From PerpetuityTablaOldest f left join FirstAndLastBillsWithPayment
   ON contrato=act_acct_cd
 )
 #################################################### Oldest Unpaid Bill Selection ############################################
@@ -89,7 +87,7 @@ group by 1
   WHEN Bill_Payment_Date IS NULL AND Payment_Prev_Bill IS NOT NUll AND FECHA_EXTRACCION<DATE(Payment_Prev_Bill) THEN Prev_Bill
   WHEN Bill_DT_M0 IS NOT NULL THEN NoPaymentBill
   WHEN Fecha_Extraccion<date(PaymentLastPaidBill) and Fecha_Extraccion>=MonthLastPaidBill THEN MonthLastPaidBill
-  ELSE Null END AS OLDEST_UNPAID
+  ELSE Null END AS Oldest_Unpaid
   FROM FistPaidBillIntegration f
 )
 
