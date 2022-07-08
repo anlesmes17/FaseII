@@ -225,11 +225,11 @@ THEN 1 ELSE 0 END AS Fixed_Rejoiner
 FROM ChurnersFixedTable f LEFT JOIN FixedRejoinerFebPopulation r ON f.Fixed_Account=r.Fixed_Account AND f.Fixed_Month=SAFE_CAST(r.Month AS DATE)
 )
 
-,FinalTable as(
+--,FinalTable as(
 SELECT *,CASE
 WHEN FixedChurnTypeFlag is not null THEN b_NumRGUs
 WHEN MainMovement="Downsell" THEN (B_NumRGUs - ifnull(E_NumRGUs,0))
 ELSE NULL END AS RGU_Churn,
 CONCAT(ifnull(B_VO_nm,""),ifnull(B_TV_nm,""),ifnull(B_BB_nm,"")) AS B_PLAN,CONCAT(ifnull(E_VO_nm,""),ifnull(E_TV_nm,""),ifnull(E_BB_nm,"")) AS E_PLAN
 FROM FullFixedBase_Rejoiners
-)
+--)
