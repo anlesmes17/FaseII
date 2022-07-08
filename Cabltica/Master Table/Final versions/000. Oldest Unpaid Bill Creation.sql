@@ -87,12 +87,13 @@ group by 1
   WHEN Bill_Payment_Date IS NULL AND Payment_Prev_Bill IS NOT NUll AND FECHA_EXTRACCION<DATE(Payment_Prev_Bill) THEN Prev_Bill
   WHEN Bill_DT_M0 IS NOT NULL THEN NoPaymentBill
   WHEN Fecha_Extraccion<date(PaymentLastPaidBill) and Fecha_Extraccion>=MonthLastPaidBill THEN MonthLastPaidBill
-  ELSE Null END AS Oldest_Unpaid
+  ELSE Null END AS OLDEST_UNPAID_BILL_DT_NEW--This is the field we are creating, its final name should be "OLDEST_UNPAID_BILL_DT"
   FROM FistPaidBillIntegration f
 )
 
 --,FI_Outst_Age as(--This query calculates the outstanding days of every user
 Select Distinct * except(Bill_Payment_Date,Payment_Prev_Bill,Prev_Bill,NoPaymentBill,MonthFirstPaidBill,PaymentFirstPaidBill,MonthLastPaidBill,PaymentLastPaidBill)
-,date_diff(Fecha_Extraccion,OLDEST_UNPAID,Day) as Outstanding_Days
+,date_diff(Fecha_Extraccion,OLDEST_UNPAID_BILL_DT_NEW,Day) as FI_OUTST_AGE
 FROM OldestStepOne
 --)
+
