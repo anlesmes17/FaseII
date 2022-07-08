@@ -6,14 +6,9 @@
 
 WITH
 FinalTable AS (
-    SELECT DISTINCT *,CONCAT(ifnull(B_Plan,""),ifnull(safe_cast(Mobile_ActiveBOM as string),"")) AS B_PLAN_ADJ, CONCAT(ifnull(E_Plan,""),ifnull(safe_cast(Mobile_ActiveEOM as string),"")) AS E_PLAN_ADJ 
+    SELECT DISTINCT *,CASE WHEN B_PLAN=E_PLAN THEN Fixed_Account ELSE NULL END AS no_plan_change_flag
     FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Final_Table_DashboardInput_v2`
 ) 
-,FinalTablePlanAdj AS (
-    SELECT DISTINCT *, 
-    CASE WHEN B_PLAN_ADJ=E_PLAN_ADJ THEN Fixed_Account ELSE NULL END AS no_plan_change_flag
-    FROM FinalTable
-)
 
 
 ####################################### Involuntarios Never Paid ###############################################
@@ -55,7 +50,7 @@ RIGHT JOIN InstallationChurners c
 
 ,NeverPaids AS(
   SELECT DISTINCT f.*,InstallationAccount,CHURNTYPEFLAGSO, NeverPaid_Flag,  
-  FROM FinalTablePlanAdj f LEFT JOIN never_paid_flag c ON safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string)=safe_cast(RIGHT(CONCAT('0000000000',c.InstallationAccount),10) as string) AND safe_cast(InstallationMonth as string)=Month 
+  FROM FinalTable f LEFT JOIN never_paid_flag c ON safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string)=safe_cast(RIGHT(CONCAT('0000000000',c.InstallationAccount),10) as string) AND safe_cast(InstallationMonth as string)=Month 
 ORDER BY NeverPaid_Flag DESC
 )
 ,NeverPaidMasterTable AS(
@@ -223,7 +218,7 @@ SELECT *, abs(mrc_change) AS Abs_MRC_Change FROM SalesMasterTable
 ,BillShocks AS (
 SELECT DISTINCT *,
 CASE
-WHEN Abs_MRC_Change>(TOTAL_B_MRC*(.05)) AND B_PLAN_ADJ=E_PLAN_ADJ AND no_plan_change_flag is not null THEN Fixed_Account ELSE NULL END AS increase_flag
+WHEN Abs_MRC_Change>(TOTAL_B_MRC*(.05)) AND B_PLAN=E_PLAN AND no_plan_change_flag is not null THEN Fixed_Account ELSE NULL END AS increase_flag
 FROM AbsMRC
 )
 
