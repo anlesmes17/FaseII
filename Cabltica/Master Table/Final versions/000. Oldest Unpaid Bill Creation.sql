@@ -31,6 +31,8 @@ ON PF=Factura
 
 ############################################################ Unión Billing CRM ########################################################################
 
+------------------- The field "Fecha_Exteaccion" is the equivalent to "Load_dt" in other Opco's. Use Load_dt instead
+
 ,CRM as(
   SELECT DISTINCT * FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
 )
@@ -96,4 +98,3 @@ Select Distinct * except(Bill_Payment_Date,Payment_Prev_Bill,Prev_Bill,NoPayment
 ,date_diff(Fecha_Extraccion,OLDEST_UNPAID_BILL_DT_NEW,Day) as FI_OUTST_AGE
 FROM OldestStepOne
 --)
-
