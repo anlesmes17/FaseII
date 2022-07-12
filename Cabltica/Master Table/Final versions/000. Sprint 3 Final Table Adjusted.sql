@@ -312,13 +312,13 @@ from ChannelAndSubchannel
 )
 
 ################################################# Excel Table ###############################################
-select distinct Month, E_FinalTechFlag, E_FMC_Segment,E_FMCType, 
+select distinct Month, --E_FinalTechFlag, E_FMC_Segment,E_FMCType, 
 count(distinct fixed_account) as activebase, 
 count(distinct monthsale_flag) as Sales, count(distinct SoftDx_Flag) as Soft_Dx, 
 count(distinct NeverPaid_Flag) as NeverPaid, count(distinct long_install_flag) as Long_installs, 
-count (distinct increase_flag) as MRC_Increases, count (distinct no_plan_change_flag) as NoPlan_Changes,
+count (distinct increase_flag) as MRC_Change, count (distinct no_plan_change_flag) as NoPlan_Changes,
 count(distinct EarlyIssue_Flag) as EarlyIssueCall, count(distinct TechCall_Flag) as TechCalls,
-count(distinct BillClaim_Flag) as BillClaim,categoria_canal
+count(distinct BillClaim_Flag) as BillClaim,--categoria_canal
 from FinalSalesChannel
-Group by 1,2,3,4,15
+Group by 1--,2,3,4,15
 Order by 1 desc, 2,3,4
