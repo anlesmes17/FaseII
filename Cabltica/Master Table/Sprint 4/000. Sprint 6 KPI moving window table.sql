@@ -14,71 +14,47 @@ SELECT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_
 
 ------------------------------------------------------- One Time & Repeated Callers -----------------------------------------------------------------
 
-,LLAMADAS AS(
-    SELECT RIGHT(CONCAT('0000000000',CONTRATO),10) AS CONTRATO, FECHA_APERTURA AS FECHA_LLAMADA, DATE_TRUNC(FECHA_APERTURA,MONTH) AS MES_LLAMADA, TIQUETE_ID
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_TIQUETES_SERVICIO_2021-01_A_2022-05_D`
-    WHERE 
-        CLASE IS NOT NULL AND MOTIVO IS NOT NULL AND CONTRATO IS NOT NULL
+,Interactions_Fields as(
+  select distinct *,date_trunc(Fecha_Apertura,Month)  as month,RIGHT(CONCAT('0000000000',CONTRATO),10) AS ContratoInteractions
+  From `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_TIQUETES_SERVICIO_2021-01_A_2022-05_D`
+)
+
+,Last_Interaction as (
+  select distinct RIGHT(CONCAT('0000000000',CONTRATO),10) AS last_account,
+  first_value(Fecha_Apertura) over(partition by safe_cast(contrato as string),date_trunc(Fecha_Apertura,Month) order by Fecha_Apertura desc) as last_interaction_date
+  From `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_TIQUETES_SERVICIO_2021-01_A_2022-05_D`
+  where clase IS NOT NULL AND Motivo IS NOT NULL AND Contrato IS NOT NULL
         AND ESTADO <> "ANULADA"
         AND TIPO <> "GESTION COBRO"
         AND MOTIVO <> "LLAMADA  CONSULTA DESINSTALACION"
 )
-,LLAMADAS_MES AS (
-    SELECT CONTRATO, MES_LLAMADA, COUNT(DISTINCT TIQUETE_ID) AS N_LLAMADAS_MES, MAX(FECHA_LLAMADA) AS MAX_APERTURA, DATE_SUB(MAX(FECHA_LLAMADA), INTERVAL 60 DAY) AS MAX_APERTURA_60D
-    FROM LLAMADAS
-    GROUP BY 1,2
-    ORDER BY 2, 3 DESC
+
+,Join_last_interaction as(
+  select distinct contratointeractions,Tiquete_id, Fecha_Apertura as interaction_date,date_trunc(last_interaction_date,Month) as InteractionMonth,last_interaction_date,
+  date_add(last_interaction_date,Interval -60 day) as window_day
+  From interactions_fields w inner join last_interaction l
+  on safe_cast(w.contratointeractions as string)=safe_cast(l.last_account as string)
 )
--- lo que hacemos aquí es buscar por cada mes los usuarios que tengan llamadas en los 60 días anteriores
-,LLAMADAS_60D AS (
-    SELECT m.*,l.FECHA_LLAMADA AS FECHA_LLAMADA_ANT, l.TIQUETE_ID
-    FROM LLAMADAS_MES AS m
-    LEFT JOIN LLAMADAS AS l
-        ON ((m.CONTRATO = l.CONTRATO) AND (l.FECHA_LLAMADA BETWEEN m.MAX_APERTURA_60D AND m.MAX_APERTURA))
+
+
+,Interactions_Count as(
+  select distinct InteractionMonth,Contratointeractions,count(distinct tiquete_id) as Interactions
+  From join_last_interaction
+  where interaction_date between window_day and last_interaction_date
+  group by 1,2
 )
-,LLAMADAS_GR AS (
-    SELECT MES_LLAMADA,CONTRATO,COUNT(DISTINCT TIQUETE_ID) AS N_LLAMADAS_60D,
-        CASE -- marca para el número de llamadas en los últimos 60 días
-            WHEN COUNT(DISTINCT TIQUETE_ID) = 1 THEN '1'
-            WHEN COUNT(DISTINCT TIQUETE_ID) = 2 THEN '2'
-            WHEN COUNT(DISTINCT TIQUETE_ID) >= 3 THEN '3+'
-        ELSE NULL END AS FLAG_LLAMADAS_60D
-    FROM LLAMADAS_60D
-    GROUP BY 1,2
-    ORDER BY 1, 3 DESC
+
+,Interactions_tier as(
+  select *,
+  case when Interactions=1 Then contratointeractions else null end as OneCall,
+  case when Interactions=2 Then contratointeractions else null end as TwoCalls,
+  case when Interactions>=3 Then contratointeractions else null end as MultipleCalls
+  From Interactions_Count
 )
-,OneCall AS (
-    SELECT MES_LLAMADA AS CALL_MONTH, FLAG_LLAMADAS_60D AS CALLS_FLAG, CONTRATO AS ContratoLlamada
-    FROM LLAMADAS_GR
-    WHERE FLAG_LLAMADAS_60D="1"
-    GROUP BY 1,2,3
-    ORDER BY 1
-)
-,TwoCalls AS (
-    SELECT MES_LLAMADA AS CALL_MONTH, FLAG_LLAMADAS_60D AS CALLS_FLAG, CONTRATO AS ContratoLlamada
-    FROM LLAMADAS_GR
-    WHERE FLAG_LLAMADAS_60D="2"
-    GROUP BY 1,2,3
-    ORDER BY 1
-)
-,MultipleCalls AS (
-    SELECT MES_LLAMADA AS CALL_MONTH, FLAG_LLAMADAS_60D AS CALLS_FLAG, CONTRATO AS ContratoLlamada
-    FROM LLAMADAS_GR
-    WHERE FLAG_LLAMADAS_60D="3+"
-    GROUP BY 1,2,3
-    ORDER BY 1
-)
-,OneCallMasterTable AS(
-  SELECT f.*,ContratoLlamada AS OneCall
-  FROM FMC_Table f LEFT JOIN OneCall ON safe_cast(ContratoLlamada as string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string) AND Month=safe_cast(CALL_MONTH as string)
-)
-,TwoCallsMasterTable AS(
-  SELECT f.*,ContratoLlamada AS TwoCalls
-  FROM OneCallMasterTable f LEFT JOIN TwoCalls ON safe_cast(ContratoLlamada as string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string) AND Month=safe_cast(CALL_MONTH as string)
-)
-,MultipleCallsMasterTable AS(
-  SELECT f.*,ContratoLlamada AS MultipleCalls
-  FROM TwoCallsMasterTable f LEFT JOIN MultipleCalls ON safe_cast(ContratoLlamada as string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string) AND Month=safe_cast(CALL_MONTH as string)
+,RepeatedCallsMasterTable AS(
+  SELECT f.*,OneCall,TwoCalls, MultipleCalls
+  FROM FMC_Table f LEFT JOIN Interactions_tier
+  ON safe_cast(Contratointeractions as float64)=Fixed_Account AND Month=safe_cast(InteractionMonth as string)
 )
 
 
@@ -146,7 +122,7 @@ TIQUETES_GR AS (
 
 ,OneTicketMasterTable AS(
   SELECT f.*,ContratoTicket AS OneTicket
-  FROM MultipleCallsMasterTable f LEFT JOIN OneTicket ON safe_cast(ContratoTicket as string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string) AND Month=safe_cast(TICKET_MONTH as string)
+  FROM RepeatedCallsMasterTable f LEFT JOIN OneTicket ON safe_cast(ContratoTicket as string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string) AND Month=safe_cast(TICKET_MONTH as string)
 )
 
 ,TwoTicketsMasterTable AS(
@@ -194,11 +170,11 @@ TIQUETES_GR AS (
 
 
 ######################################################## CSV File ########################################################################
-select distinct Month,B_FinalTechFlag, B_FMC_Segment,B_FMCType, E_FinalTechFlag, E_FMC_Segment,E_FMCType,FinalChurnFlag,B_TenureFinalFlag,E_TenureFinalFlag,
+select distinct Month,--B_FinalTechFlag, B_FMC_Segment,B_FMCType, E_FinalTechFlag, E_FMC_Segment,E_FMCType,FinalChurnFlag,B_TenureFinalFlag,E_TenureFinalFlag,
  count(distinct fixed_account) as activebase, count(distinct oneCall) as OneCall_Flag,count(distinct TwoCalls) as TwoCalls_Flag,count(distinct MultipleCalls) as MultipleCalls_Flag,
  count(distinct OneTicket) as OneTicket_Flag,count(distinct TwoTickets) as TwoTickets_Flag,count(distinct MultipleTickets) as MultipleTickets_Flag,
  count(distinct FailedInstallations) as FailedInstallations_Flag, round(sum(NumTechTickets)) as TicketDensity_Flag
 from NumTiquetesMasterTable
 Where finalchurnflag<>"Fixed Churner" AND finalchurnflag<>"Customer Gap" AND finalchurnflag<>"Full Churner" AND finalchurnflag<>"Churn Exception"
-Group by 1,2,3,4,5,6,7,8,9,10
+Group by 1--,2,3,4,5,6,7,8,9,10
 Order by 1 desc, 2,3,4
