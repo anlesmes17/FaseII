@@ -58,43 +58,42 @@ SELECT DISTINCT m.*, monthsale_Flag
 FROM NeverPaids m LEFT JOIN Installations v ON Month=safe_cast(v.InstallationMonth as string) AND v.act_acct_cd=Fixed_Account 
 )
 
-###################################### New Users Issue Calls ####################################################
+##################################################################### Early Interactions #########################################################
 
-
-,LLAMADAS AS(
-    SELECT RIGHT(CONCAT('0000000000',CONTRATO),10) AS CONTRATO, FECHA_APERTURA AS FECHA_LLAMADA
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_TIQUETES_SERVICIO_2021-01_A_2022-05_D`
-    WHERE CLASE IS NOT NULL AND MOTIVO IS NOT NULL AND CONTRATO IS NOT NULL
-        AND ESTADO <> "ANULADA"
-        AND TIPO <> "GESTION COBRO"
-        AND MOTIVO <> "LLAMADA  CONSULTA DESINSTALACION"
+,Initial_Table_Tickets as(
+  select date_trunc(Fecha_Apertura,Month) as Ticket_Month,RIGHT(CONCAT('0000000000',CONTRATO),10) AS Contrato,Tiquete_ID,min(Fecha_Apertura) as interaction_start_time
+  FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_TIQUETES_SERVICIO_2021-01_A_2022-05_D`
+  where CLASE IS NOT NULL AND MOTIVO IS NOT NULL AND CONTRATO IS NOT NULL
+  and ESTADO <> "ANULADA" and TIPO <> "GESTION COBRO" and MOTIVO <> "LLAMADA  CONSULTA DESINSTALACION" AND subarea<>"VENTA VIRTUAL" AND subarea<>"FECHA Y HORA DE VISITA"
+  and subarea <>"SOLICITUD DE INFORMACION" and subarea<>"FECHA Y HORA DE VISITA WEB"
+  group by 1,2,3
 )
 
-,INSTALACION_CONTRATOS AS (
-    SELECT RIGHT(CONCAT('0000000000',ACT_ACCT_CD),10) AS ACT_ACCT_CD, DATE(MIN(ACT_ACCT_INST_DT)) AS INSTALLATION_DT, DATE_TRUNC(DATE(MIN(ACT_ACCT_INST_DT)),MONTH) AS InstallationMonth
+,Installation_contracts AS (
+    SELECT date_trunc(min(act_acct_sign_dt),Month) as Sales_Month,RIGHT(CONCAT('0000000000',ACT_ACCT_CD),10) AS act_acct_cd,min(act_acct_sign_dt) as act_acct_sign_dt,
+    min(act_acct_inst_dt) as  act_acct_inst_dt,date_trunc(min(act_acct_inst_dt),Month) as Inst_Month
     FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
-    GROUP BY 1
+    Where act_acct_sign_dt between date_trunc(act_acct_sign_dt,Month) and date_add(date_trunc(act_acct_sign_dt,Month),Interval 90 Day)
+    GROUP BY 2
 )
 
-,CONTRATOS_LLAMADAS AS (
-  SELECT distinct * EXCEPT(FECHA_LLAMADA),
-    CASE WHEN DATE_DIFF(MIN(FECHA_LLAMADA),INSTALLATION_DT,DAY) <= 21 THEN ACT_ACCT_CD ELSE NULL END AS EarlyIssue_Flag, -- llamadas hasta 21 días después de la instalación
-  FROM INSTALACION_CONTRATOS AS i
-  LEFT JOIN LLAMADAS AS l
-    ON i.ACT_ACCT_CD = l.CONTRATO
-    AND l.FECHA_LLAMADA >= i.INSTALLATION_DT -- el tiquete debe ser después de la instalación
-    GROUP BY 1,2,3,4
+,joint_bases_et as(
+  select t.*,i.sales_month,i.act_acct_sign_dt,i.inst_month,i.act_acct_inst_dt
+  From Initial_Table_Tickets t left join Installation_contracts i
+  on t.Contrato=act_acct_cd
 )
 
-,UserCallDistribution AS (
-SELECT DISTINCT ACT_ACCT_CD, DATE_TRUNC(INSTALLATION_DT,MONTH) AS InstallationMonth,EarlyIssue_Flag
-FROM CONTRATOS_LLAMADAS
-GROUP BY 1,2,3
+,account_summary_tickets as(
+  select Contrato as Account_ID, max(case when date_diff(date(interaction_start_time),date(act_acct_sign_dt),week)<=7 then contrato else null end) as early_tickets,
+  Sales_Month,Inst_Month,date_trunc(interaction_start_time,Month) as ticket_month
+  From joint_bases_et
+  group by 1,3,4,5
 )
 
-,LlamadasAjustado AS(
-  SELECT DISTINCT f.*,EarlyIssue_Flag
-  FROM NeverPaidMasterTable f LEFT JOIN CONTRATOS_LLAMADAS c ON safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string)=safe_cast(c.CONTRATO as string) AND safe_cast( InstallationMonth as string)=Month 
+,Early_interaction_MasterTable AS(
+  SELECT DISTINCT f.*,early_tickets as EarlyIssue_Flag,ticket_Month
+  FROM NeverPaidMasterTable f LEFT JOIN account_summary_tickets c 
+  ON safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string)=safe_cast(c.Account_ID as string) AND safe_cast( Ticket_Month as string)=Month 
 )
 
 
@@ -125,7 +124,7 @@ GROUP BY 1,2,3
 )
 
 ,CallsMasterTable AS (
-  SELECT DISTINCT f.*, TechCall_Flag FROM LlamadasAjustado f LEFT JOIN CONTRATOS_TIQUETES c ON RIGHT(CONCAT('0000000000',Fixed_Account),10)=RIGHT(CONCAT('0000000000',c.ACT_ACCT_CD),10) AND Month=safe_cast(InstallationMonth as string)
+  SELECT DISTINCT f.*, TechCall_Flag FROM Early_interaction_MasterTable f LEFT JOIN CONTRATOS_TIQUETES c ON RIGHT(CONCAT('0000000000',Fixed_Account),10)=RIGHT(CONCAT('0000000000',c.ACT_ACCT_CD),10) AND Month=safe_cast(InstallationMonth as string)
 
 )
 
