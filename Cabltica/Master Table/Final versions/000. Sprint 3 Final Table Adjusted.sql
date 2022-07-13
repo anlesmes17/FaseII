@@ -14,6 +14,21 @@ FinalTable AS (
     FROM FinalTable
 )
 
+,install_data as(
+  select 
+  date_trunc(act_acct_sign_dt,Month) as Sales_Month,
+  date_trunc(date(act_acct_inst_dt),Month) as Install_Month,
+  act_acct_cd
+  From `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
+)
+
+,installs_fmc_table as(
+  select f.*,Sales_Month,Install_Month
+  From FinalTablePlanAdj f left join install_data b
+  ON b.act_acct_cd=Fixed_Account and Month=safe_cast(Install_Month as string)
+)
+
+
 ####################################### Involuntarios Never Paid ###############################################
 ,Installations AS (
     SELECT DATE_TRUNC(FECHA_INSTALACION,MONTH) AS InstallationMonth,act_acct_cd, INSTALLATION_DT,monthsale_Flag
@@ -53,7 +68,7 @@ RIGHT JOIN InstallationChurners c
 
 ,NeverPaids AS(
   SELECT DISTINCT f.*,InstallationAccount,CHURNTYPEFLAGSO, NeverPaid_Flag,  
-  FROM FinalTablePlanAdj f LEFT JOIN never_paid_flag c ON safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string)=safe_cast(RIGHT(CONCAT('0000000000',c.InstallationAccount),10) as string) AND safe_cast(InstallationMonth as string)=Month 
+  FROM installs_fmc_table f LEFT JOIN never_paid_flag c ON safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string)=safe_cast(RIGHT(CONCAT('0000000000',c.InstallationAccount),10) as string) AND safe_cast(InstallationMonth as string)=Month 
 ORDER BY NeverPaid_Flag DESC
 )
 ,NeverPaidMasterTable AS(
@@ -67,7 +82,8 @@ FROM NeverPaids m LEFT JOIN Installations v ON Month=safe_cast(v.InstallationMon
   select date_trunc(Fecha_Apertura,Month) as Interaction_Month,RIGHT(CONCAT('0000000000',CONTRATO),10) AS Contrato,Tiquete_ID,min(Fecha_Apertura) as interaction_start_time
   FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_TIQUETES_SERVICIO_2021-01_A_2022-05_D`
   where CLASE IS NOT NULL AND MOTIVO IS NOT NULL AND CONTRATO IS NOT NULL
-  and ESTADO <> "ANULADA" and TIPO <> "GESTION COBRO" and MOTIVO <> "LLAMADA  CONSULTA DESINSTALACION" AND subarea<>"VENTA VIRTUAL"
+  and ESTADO <> "ANULADA" and TIPO <> "GESTION COBRO" and MOTIVO <> "LLAMADA  CONSULTA DESINSTALACION" AND subarea<>"VENTA VIRTUAL" AND subarea<>"FECHA Y HORA DE VISITA"
+  and subarea<>"FECHA Y HORA DE VISITA WEB"
   group by 1,2,3
 )
 
@@ -297,7 +313,7 @@ on RIGHT(CONCAT('0000000000',CONTRATO),10)=RIGHT(CONCAT('0000000000',ACT_ACCT_CD
 )
 
 
---,FinalSalesChannel AS(
+,FinalSalesChannel AS(
 select DISTINCT * except(categoria_canal, subcanal_venta), CASE
 WHEN SalesChannelAdjusted="Digital"  THEN "Digital"
 WHEN SalesChannelAdjusted="Televentas-Outbound"  THEN "Televentas-Outbound"
@@ -311,22 +327,20 @@ WHEN SalesChannelAdjusted="Oficina" THEN "Retail"
 WHEN SalesChannelAdjusted="NETCOM" OR SalesChannelAdjusted="Hoteles/Condominios" OR SalesChannelAdjusted="Ventas Empresariales" THEN "Other"
 ELSE NULL END AS Categoria_canal
 from ChannelAndSubchannel
-where fixed_account=0001208584
 order by Month
 
---)
+)
 
 ################################################# Excel Table ###############################################
-/*
-select distinct Month, --E_FinalTechFlag, E_FMC_Segment,E_FMCType, 
+
+select distinct Month,E_FinalTechFlag, E_FMC_Segment,E_FMCType, 
 count(distinct fixed_account) as activebase, 
 count(distinct monthsale_flag) as Sales, count(distinct SoftDx_Flag) as Soft_Dx, 
 count(distinct NeverPaid_Flag) as NeverPaid, count(distinct long_install_flag) as Long_installs, 
 count (distinct increase_flag) as MRC_Change, count (distinct no_plan_change_flag) as NoPlan_Changes,
 count(distinct EarlyIssue_Flag) as EarlyIssueCall, count(distinct TechCall_Flag) as TechCalls,
-count(distinct BillClaim_Flag) as BillClaim,--categoria_canal
+count(distinct BillClaim_Flag) as BillClaim,categoria_canal,sales_Month,Install_Month
 from FinalSalesChannel
 Where finalchurnflag<>"Fixed Churner" AND finalchurnflag<>"Customer Gap" AND finalchurnflag<>"Full Churner" AND finalchurnflag<>"Churn Exception"
-Group by 1--,2,3,4,15
+Group by 1,2,3,4,15,16,17
 Order by 1 desc, 2,3,4
-*/
