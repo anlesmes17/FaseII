@@ -141,6 +141,12 @@ from( select Month,Opco,Market,MarketSize,Product,Biz_Unit,journey_waypoint,face
 )
 )
 
+,FinalTable as(
 select distinct Month,Opco,Market,MarketSize,Product,Biz_Unit,journey_waypoint,facet,kpi_name,kpi_meas,extract (year from date(Month)) as ref_year,
 extract(month from date(month)) as ref_mo
 from Join_New_KPIs
+
+)
+
+select * from FinalTable
+where ref_year=2022 and ref_mo=2
