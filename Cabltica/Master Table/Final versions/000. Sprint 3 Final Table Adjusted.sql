@@ -2,14 +2,17 @@
 
 --`gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Final_Sprint3_Table_DashboardInput_v2` AS
 
-
-
 WITH
+
 FinalTable AS (
-    SELECT DISTINCT *,CASE WHEN B_PLAN=E_PLAN THEN Fixed_Account ELSE NULL END AS no_plan_change_flag
+    SELECT DISTINCT *,CONCAT(ifnull(B_Plan,""),ifnull(safe_cast(Mobile_ActiveBOM as string),"")) AS B_PLAN_ADJ, CONCAT(ifnull(E_Plan,""),ifnull(safe_cast(Mobile_ActiveEOM as string),"")) AS E_PLAN_ADJ 
     FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Final_Table_DashboardInput_v2`
 ) 
-
+,FinalTablePlanAdj AS (
+    SELECT DISTINCT *, 
+    CASE WHEN B_PLAN_ADJ=E_PLAN_ADJ THEN Fixed_Account ELSE NULL END AS no_plan_change_flag
+    FROM FinalTable
+)
 
 ####################################### Involuntarios Never Paid ###############################################
 ,Installations AS (
@@ -50,7 +53,7 @@ RIGHT JOIN InstallationChurners c
 
 ,NeverPaids AS(
   SELECT DISTINCT f.*,InstallationAccount,CHURNTYPEFLAGSO, NeverPaid_Flag,  
-  FROM FinalTable f LEFT JOIN never_paid_flag c ON safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string)=safe_cast(RIGHT(CONCAT('0000000000',c.InstallationAccount),10) as string) AND safe_cast(InstallationMonth as string)=Month 
+  FROM FinalTablePlanAdj f LEFT JOIN never_paid_flag c ON safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string)=safe_cast(RIGHT(CONCAT('0000000000',c.InstallationAccount),10) as string) AND safe_cast(InstallationMonth as string)=Month 
 ORDER BY NeverPaid_Flag DESC
 )
 ,NeverPaidMasterTable AS(
@@ -294,7 +297,7 @@ on RIGHT(CONCAT('0000000000',CONTRATO),10)=RIGHT(CONCAT('0000000000',ACT_ACCT_CD
 )
 
 
-,FinalSalesChannel AS(
+--,FinalSalesChannel AS(
 select DISTINCT * except(categoria_canal, subcanal_venta), CASE
 WHEN SalesChannelAdjusted="Digital"  THEN "Digital"
 WHEN SalesChannelAdjusted="Televentas-Outbound"  THEN "Televentas-Outbound"
@@ -308,10 +311,13 @@ WHEN SalesChannelAdjusted="Oficina" THEN "Retail"
 WHEN SalesChannelAdjusted="NETCOM" OR SalesChannelAdjusted="Hoteles/Condominios" OR SalesChannelAdjusted="Ventas Empresariales" THEN "Other"
 ELSE NULL END AS Categoria_canal
 from ChannelAndSubchannel
+where fixed_account=0001208584
+order by Month
 
-)
+--)
 
 ################################################# Excel Table ###############################################
+/*
 select distinct Month, --E_FinalTechFlag, E_FMC_Segment,E_FMCType, 
 count(distinct fixed_account) as activebase, 
 count(distinct monthsale_flag) as Sales, count(distinct SoftDx_Flag) as Soft_Dx, 
@@ -320,5 +326,7 @@ count (distinct increase_flag) as MRC_Change, count (distinct no_plan_change_fla
 count(distinct EarlyIssue_Flag) as EarlyIssueCall, count(distinct TechCall_Flag) as TechCalls,
 count(distinct BillClaim_Flag) as BillClaim,--categoria_canal
 from FinalSalesChannel
+Where finalchurnflag<>"Fixed Churner" AND finalchurnflag<>"Customer Gap" AND finalchurnflag<>"Full Churner" AND finalchurnflag<>"Churn Exception"
 Group by 1--,2,3,4,15
 Order by 1 desc, 2,3,4
+*/
