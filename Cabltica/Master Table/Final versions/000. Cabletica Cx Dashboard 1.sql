@@ -6,6 +6,7 @@ FMC_Table AS(
   Case when MainMovement="New Customer" THEN Fixed_Account Else null end as Gross_Adds,
   Case when Fixed_account is not null then Fixed_Account Else null end as Active_Base
    FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Final_Table_DashboardInput_v2`
+
 )
 
 ,Sprint3_KPIs as(-- falta arreglar soft dx y never paid, toca hacer mounting bills
@@ -13,6 +14,7 @@ FMC_Table AS(
   sum(Long_Installs) as unique_longinstalls,sum(EarlyIssueCall) as unique_earlyinteraction,sum(TechCalls) as unique_earlyticket,
   sum(BillClaim) as unique_billclaim,sum(MRC_Change) as unique_mrcchange,sum(NoPlan_Changes) as noplan
   From `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Final_Sprint3_Table_DashboardInput_v2`
+  Where Month<>"2020-12-01" and Month<>"2022-06-01"
   group by 1
 )
 
@@ -31,6 +33,7 @@ FMC_Table AS(
   select distinct Sales_Month as Month,sum(sales) as unique_sales,sum(Long_Installs) as unique_longinstalls,
   sum(EarlyIssueCall) as unique_earlyinteraction,sum(TechCalls) as unique_earlyticket,
   From `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Final_Sprint3_Table_DashboardInput_v2`
+  Where sales_Month>="2021-01-01"
   group by 1
 )
 
@@ -144,7 +147,7 @@ round(Customers_w_MRC_Changes*100,2) as kpi_meas,mrc_change as kpi_num,noplan_cu
   From( select distinct Month,Opco,Market,MarketSize,Product,Biz_Unit,facet,journey_waypoint,kpi_name,kpi_meas,kpi_num,kpi_den From Join_DNA_kpis
   union all select Month,Opco,Market,MarketSize,Product,Biz_Unit,journey_waypoint,facet,kpi_name,kpi_meas,kpi_num,kpi_den from TechTickets_Flag
   union all select Month,Opco,Market,MarketSize,Product,Biz_Unit,journey_waypoint,facet,kpi_name,kpi_meas,kpi_num,kpi_den from MRCChanges_Flag
-  union all select Month,Opco,Market,MarketSize,Product,Biz_Unit,journey_waypoint,facet,kpi_name,kpi_meas,kpi_num,kpi_den from SalesSoftDx_Flag
+  --union all select Month,Opco,Market,MarketSize,Product,Biz_Unit,journey_waypoint,facet,kpi_name,kpi_meas,kpi_num,kpi_den from SalesSoftDx_Flag
   union all select Month,Opco,Market,MarketSize,Product,Biz_Unit,journey_waypoint,facet,kpi_name,kpi_meas,kpi_num,kpi_den from EarlyIssues_Flag
   union all select Month,Opco,Market,MarketSize,Product,Biz_Unit,journey_waypoint,facet,kpi_name,kpi_meas,kpi_num,kpi_den from LongInstall_Flag
   union all select Month,Opco,Market,MarketSize,Product,Biz_Unit,journey_waypoint,facet,kpi_name,kpi_meas,kpi_num,kpi_den from EarlyTickets_Flag
@@ -168,4 +171,4 @@ from Join_New_KPIs
 )
 
 select * from FinalTable
-where ref_year=2022 and ref_mo=2
+where Month<>"2022-06-01"
