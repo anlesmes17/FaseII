@@ -344,3 +344,4 @@ from FinalSalesChannel
 Where finalchurnflag<>"Fixed Churner" AND finalchurnflag<>"Customer Gap" AND finalchurnflag<>"Full Churner" AND finalchurnflag<>"Churn Exception"
 Group by 1,2,3,4,15,16,17
 Order by 1 desc, 2,3,4
+
