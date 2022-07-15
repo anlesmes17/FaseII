@@ -1,0 +1,20 @@
+--CREATE OR REPLACE TABLE
+--`gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022` AS
+
+
+WITH
+
+Historic_CRM as(
+  select * From `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
+  where fecha_extraccion<>"2022-04-01" and fecha_extraccion<>"2022-05-01" and fecha_extraccion<>"2022-06-01"
+)
+
+,CRM_voice_fix as(
+SELECT * FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220715_CRM_Payments_Fix_V2`
+)
+
+--,New_CRM as(
+  select * From Historic_CRM
+  UNION ALL
+  select * From CRM_Voice_fix
+--)
