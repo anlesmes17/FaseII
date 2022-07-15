@@ -98,37 +98,37 @@ group by 1,2,3,4,5,6,7
 
 ,TechTickets_Flag as(
   select distinct Month,Opco,Market,MarketSize,Product,Biz_Unit,'contact_intensity' as facet,'use' as journey_waypoint,'Tech_Tix_per_100_Acct' as kpi_name,
-  round(Tech_Tix_per_100_Acct*100,2) as kpi_meas,tickets as kpi_num,fixed_acc as kpi_den from S5_CX_KPIs
+  round(Tech_Tix_per_100_Acct,4) as kpi_meas,tickets as kpi_num,fixed_acc as kpi_den from S5_CX_KPIs
 )
 
 ,MRCChanges_Flag as(
   select distinct Month,Opco,Market,MarketSize,Product,Biz_Unit,'contact_drivers' as facet,'pay' as journey_waypoint,'%Customers_w_MRC_Changes_5%+_excl_plan' as kpi_name,
-round(Customers_w_MRC_Changes*100,2) as kpi_meas,mrc_change as kpi_num,noplan_customers as kpi_den From S3_CX_KPIs
+round(Customers_w_MRC_Changes,4) as kpi_meas,mrc_change as kpi_num,noplan_customers as kpi_den From S3_CX_KPIs
 )
 
 ,SalesSoftDx_Flag as(
   select distinct Month,Opco,Market,MarketSize,Product,Biz_Unit,'high_risk' as facet,'buy' as journey_waypoint,'%New_Sales_to_Soft_Dx' as kpi_name,
-  round(New_Sales_to_Soft_Dx*100,2) as kpi_meas,unique_softdx as kpi_num,unique_sales as kpi_den From S3_CX_KPIs
+  round(New_Sales_to_Soft_Dx,4) as kpi_meas,unique_softdx as kpi_num,unique_sales as kpi_den From S3_CX_KPIs
 )
 
 ,EarlyIssues_Flag as(
   select distinct Month,Opco,Market,MarketSize,Product,Biz_Unit,'high_risk' as facet,'buy' as journey_waypoint,'%New_Customer_Callers_2+calls_21days' as kpi_name,
-  round(New_Customer_Callers*100,2) as kpi_meas,unique_earlyinteraction as kpi_num,unique_sales as kpi_den From S3_Sales_CX_KPIs
+  round(New_Customer_Callers,4) as kpi_meas,unique_earlyinteraction as kpi_num,unique_sales as kpi_den From S3_Sales_CX_KPIs
 )
 
 ,LongInstall_Flag as(
   select distinct Month,Opco,Market,MarketSize,Product,Biz_Unit,'high_risk' as facet,'get' as journey_waypoint,'%breech_cases_install_6+days' as kpi_name,
-  round(breech_cases_installs*100,2) as kpi_meas,unique_longinstalls as kpi_num,unique_sales as kpi_den From S3_Sales_CX_KPIs
+  round(breech_cases_installs,4) as kpi_meas,unique_longinstalls as kpi_num,unique_sales as kpi_den From S3_Sales_CX_KPIs
 )
 
 ,EarlyTickets_Flag as(
   select distinct Month,Opco,Market,MarketSize,Product,Biz_Unit,'high_risk' as facet,'get' as journey_waypoint,'%Early_Tech_Tix_-7weeks' as kpi_name,
-  round(early_tech_tix*100,2) as kpi_meas,unique_earlyticket as kpi_num,unique_sales as kpi_den From S3_Sales_CX_KPIs
+  round(early_tech_tix,4) as kpi_meas,unique_earlyticket as kpi_num,unique_sales as kpi_den From S3_Sales_CX_KPIs
 )
 
 ,RepeatedCall_Flag as(
   select distinct Month,Opco,Market,MarketSize,Product,Biz_Unit,'high_risk' as facet,'support-call' as journey_waypoint,'%Repeat_Callers_2+calls' as kpi_name,
-  round(Repeated_Callers*100,2) as kpi_meas,repeat_callers as kpi_num,fixed_acc as kpi_den From S5_CX_KPIs
+  round(Repeated_Callers,4) as kpi_meas,repeat_callers as kpi_num,fixed_acc as kpi_den From S5_CX_KPIs
 )
 
 --Pendiente incluir Mounting Bill
