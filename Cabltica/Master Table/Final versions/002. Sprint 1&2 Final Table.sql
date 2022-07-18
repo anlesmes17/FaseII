@@ -1,7 +1,4 @@
---CREATE OR REPLACE TABLE
-
---`gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Final_Table_DashboardInput_v2` AS
-
+--create or replace table `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-07-14_Cabletica_FMC_DashboardInput` as 
 WITH 
 
 
@@ -11,7 +8,7 @@ Fixed_Base AS(
 )
 
 ,Mobile_Base AS(
-  SELECT DISTINCT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Mobile_DashboardInput`
+  SELECT DISTINCT * FROM `gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Mobile_DashboardInput_v2`
 
 )
 
@@ -51,11 +48,11 @@ Fixed_Base AS(
 )
 ,CONTRATO_ADJ AS (
     SELECT a.*,
-    CASE WHEN B_CONTRATO IS NOT NULL THEN safe_cast(B_CONTRATO as string)
+    CASE WHEN B_FMCAccount IS NOT NULL THEN safe_cast(B_FMCAccount as string)
     WHEN B_CONTR IS NOT NULL THEN safe_cast(B_CONTR as string)
     ELSE NULL
     END AS B_Mobile_Contrato_Adj,
-    CASE WHEN E_CONTRATO IS NOT NULL THEN safe_cast(E_CONTRATO as string)
+    CASE WHEN E_FMCAccount IS NOT NULL THEN safe_cast(E_FMCAccount as string)
     WHEN E_CONTR IS NOT NULL THEN safe_cast(E_CONTR as string)
     ELSE NULL
     END AS E_Mobile_Contrato_Adj
@@ -98,9 +95,8 @@ ELSE 0 END AS Final_BOM_ActiveFlag,
 CASE WHEN (ActiveEOM =1 AND Mobile_ActiveEOM=1) or (ActiveEOM=1 AND (Mobile_ActiveEOM=0 or Mobile_ActiveEOM IS NULL)) or ((ActiveEOM=0 OR ActiveEOM IS NULL) AND Mobile_ActiveEOM=1) THEN 1
 ELSE 0 END AS Final_EOM_ActiveFlag,
 CASE 
-WHEN (Fixed_Account is not null and Mobile_Account is not null and ActiveBOM = 1 and Mobile_ActiveBOM = 1 AND B_CONTRATO IS NOT NULL ) THEN "Soft FMC"
-WHEN (B_EMAIL IS NOT NULL AND B_CONTRATO IS NULL AND ActiveBOM=1) OR (ActiveBOM = 1 and Mobile_ActiveBOM = 1)  THEN "Near FMC"
-WHEN (B_EMAIL IS NOT NULL AND B_CONTRATO IS NOT NULL AND Fixed_Account IS NOT NULL AND ActiveBOM=1)  THEN "Undefined FMC"
+WHEN (Fixed_Account is not null and Mobile_Account is not null and ActiveBOM = 1 and Mobile_ActiveBOM = 1 AND B_FMCAccount IS NOT NULL ) THEN "Soft FMC"
+WHEN (B_EMAIL IS NOT NULL AND B_FMCAccount IS NULL AND ActiveBOM=1) OR (ActiveBOM = 1 and Mobile_ActiveBOM = 1)  THEN "Near FMC"
 WHEN (Fixed_Account IS NOT NULL AND ActiveBOM=1 AND (Mobile_ActiveBOM = 0 OR Mobile_ActiveBOM IS NULL))  THEN "Fixed Only"
 WHEN ((Mobile_Account IS NOT NULL AND Mobile_ActiveBOM=1 AND (ActiveBOM = 0 OR ActiveBOM IS NULL)))  THEN "Mobile Only"
   END AS B_FMC_Status,
@@ -109,12 +105,11 @@ WHEN FixedCount IS NULL THEN 1
 WHEN FixedCount IS NOT NULL THEN FixedCount
 End as ContractsFix,
 CASE 
-WHEN (Fixed_Account is not null and Mobile_Account is not null and ActiveEOM = 1 and Mobile_ActiveEOM = 1 AND E_CONTRATO IS NOT NULL ) THEN "Soft FMC"
-WHEN (E_EMAIL IS NOT NULL AND E_CONTRATO IS NULL) OR (ActiveEOM = 1 and Mobile_ActiveEOM = 1 ) THEN "Near FMC"
-WHEN (E_EMAIL IS NOT NULL AND E_CONTRATO IS NOT NULL)   THEN "Undefined FMC"
+WHEN (Fixed_Account is not null and Mobile_Account is not null and ActiveEOM = 1 and Mobile_ActiveEOM = 1 AND E_FMCAccount IS NOT NULL ) THEN "Soft FMC"
+WHEN (E_EMAIL IS NOT NULL AND E_FMCAccount IS NULL) OR (ActiveEOM = 1 and Mobile_ActiveEOM = 1 ) THEN "Near FMC"
 WHEN (Fixed_Account IS NOT NULL AND ActiveEOM=1 AND (Mobile_ActiveEOM = 0 OR Mobile_ActiveEOM IS NULL))  THEN "Fixed Only"
 WHEN (Mobile_Account IS NOT NULL AND Mobile_ActiveEOM=1 AND (ActiveEOM = 0 OR ActiveEOM IS NULL )) AND MobileChurnFlag IS NULL THEN "Mobile Only"
- END AS E_FMC_Status, f.*,m.* EXCEPT(B_EMAIL, E_EMAIL, B_CONTR, E_CONTR, B_Mobile_Contrato_Adj, E_Mobile_Contrato_Adj, MESES_ANTIGUEDAD),
+ END AS E_FMC_Status, f.*,m.* EXCEPT(B_EMAIL, E_EMAIL, B_CONTR, E_CONTR, B_Mobile_Contrato_Adj, E_Mobile_Contrato_Adj),
 FROM Fixed_Base f FULL OUTER JOIN JoinAccountFix  m 
 ON safe_cast(Fixed_Account as string)=Mobile_Contrato_Adj AND Fixed_Month=Mobile_Month
 )
@@ -122,12 +117,11 @@ ON safe_cast(Fixed_Account as string)=Mobile_Contrato_Adj AND Fixed_Month=Mobile
 ,CustomerBase_FMC_Tech_Flags AS(
  
  SELECT t.*,
-  round(round(ifnull(B_BILL_AMT/ContractsFix,0)) + ifnull(B_RENTA,0),0) AS TOTAL_B_MRC ,  round(round(ifnull(E_BILL_AMT/ContractsFix,0)) + ifnull(E_RENTA,0),0) AS TOTAL_E_MRC,
+  round(round(ifnull(B_BILL_AMT/ContractsFix,0)) + ifnull(Mobile_MRC_BOM,0),0) AS TOTAL_B_MRC ,  round(round(ifnull(E_BILL_AMT/ContractsFix,0)) + ifnull(Mobile_MRC_EOM,0),0) AS TOTAL_E_MRC,
  CASE  
  WHEN (B_FMC_Status = "Fixed Only" OR B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" )  AND (Mobile_ActiveBOM = 0 OR MOBILE_ACTIVEBOM IS NULL) AND B_MIX = "1P" THEN "Fixed 1P"
  WHEN (B_FMC_Status = "Fixed Only" OR B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" )  AND (Mobile_ActiveBOM = 0 OR MOBILE_ACTIVEBOM IS NULL) AND B_MIX = "2P" THEN "Fixed 2P"
  WHEN (B_FMC_Status = "Fixed Only" OR B_FMC_Status = "Soft FMC" OR B_FMC_Status="Near FMC" )  AND (Mobile_ActiveBOM = 0 OR MOBILE_ACTIVEBOM IS NULL) AND B_MIX = "3P" THEN "Fixed 3P"
- WHEN B_FMC_Status = "Undefined FMC" AND  MOBILE_ACTIVEBOM=1 THEN "Mobile Only"
  WHEN (B_FMC_Status = "Soft FMC" ) AND (ActiveBOM = 0 OR ActiveBOM is null) then "Mobile Only"
  WHEN B_FMC_Status = "Mobile Only" THEN B_FMC_Status
  WHEN (B_FMC_Status="Near FMC" OR  B_FMC_Status="Soft FMC") THEN B_FMC_Status
@@ -144,7 +138,9 @@ ON safe_cast(Fixed_Account as string)=Mobile_Contrato_Adj AND Fixed_Month=Mobile
  WHEN E_FMC_Status="Soft FMC" AND (FixedChurnTypeFlag IS NULL AND MobileChurnFlag IS NULL AND Fixed_Account IS NOT NULL  AND ActiveEOM=1 AND Mobile_ActiveEOM=1 ) THEN E_FMC_Status
  WHEN E_FMC_Status="Near FMC" AND (FixedChurnTypeFlag IS NULL AND MobileChurnFlag IS NULL  AND Fixed_Account IS NOT NULL  AND ActiveEOM=1 AND Mobile_ActiveEOM=1) THEN E_FMC_Status
  WHEN E_FMC_Status="Undefined FMC" AND (FixedChurnTypeFlag IS NULL AND MobileChurnFlag IS NULL  AND Fixed_Account IS NOT NULL AND  ActiveEOM=1 AND Mobile_ActiveEOM=1) THEN E_FMC_Status
- END AS E_FMCType,
+ END AS E_FMCType
+,case when Mobile_ActiveBOM=1 then 1 else 0 end as B_MobileRGUs
+,case when Mobile_ActiveEOM=1 then 1 else 0 end as E_MobileRGUs
  FROM FullCustomerBase  t
  
 )
@@ -158,11 +154,11 @@ SELECT c.*,
  WHEN (E_FMC_Status = "Fixed Only" AND FixedChurnTypeFlag is null) OR ((E_FMC_Status = "Soft FMC" OR E_FMC_Status="Near FMC" OR E_FMC_Status="Undefined FMC" ) AND ACTIVEEOM = 1 AND Mobile_ActiveEOM = 1 AND FixedChurnTypeFlag is null) THEN E_TechAdj
  WHEN E_FMC_Status = "Mobile Only" OR ((E_FMC_Status = "Soft FMC" OR E_FMC_Status="Near FMC" OR E_FMC_Status="Undefined FMC") AND (ACTIVEEOM = 0 OR ActiveEOM IS NULL)) THEN "Wireless"
  END AS E_FinalTechFlag,
- CASE WHEN (B_FixedTenureSegment =  "Late Tenure" and TenureCustomer =  "Late Tenure") OR (B_FixedTenureSegment =  "Late Tenure" and TenureCustomer is null) or (B_FixedTenureSegment IS NULL and TenureCustomer =  "Late Tenure") THEN "Late Tenure"
- WHEN (B_FixedTenureSegment =  "Early Tenure" OR TenureCustomer =  "Early Tenure") THEN "Early Tenure"
+ CASE WHEN (B_FixedTenureSegment =  "Late Tenure" and B_MobileTenureSegment =  "Late Tenure") OR (B_FixedTenureSegment =  "Late Tenure" and B_MobileTenureSegment is null) or (B_FixedTenureSegment IS NULL and B_MobileTenureSegment =  "Late Tenure") THEN "Late Tenure"
+ WHEN (B_FixedTenureSegment =  "Early Tenure" OR B_MobileTenureSegment =  "Early Tenure") THEN "Early Tenure"
  END AS B_TenureFinalFlag,
- CASE WHEN (E_FixedTenureSegment =  "Late Tenure" and TenureCustomer =  "Late Tenure") OR (E_FixedTenureSegment =  "Late Tenure" and TenureCustomer is null) or (E_FixedTenureSegment IS NULL and TenureCustomer =  "Late Tenure") THEN "Late Tenure"
- WHEN (E_FixedTenureSegment =  "Early Tenure" OR TenureCustomer =  "Early Tenure") THEN "Early Tenure"
+ CASE WHEN (E_FixedTenureSegment =  "Late Tenure" and E_MobileTenureSegment =  "Late Tenure") OR (E_FixedTenureSegment =  "Late Tenure" and E_MobileTenureSegment is null) or (E_FixedTenureSegment IS NULL and E_MobileTenureSegment =  "Late Tenure") THEN "Late Tenure"
+ WHEN (E_FixedTenureSegment =  "Early Tenure" OR E_MobileTenureSegment =  "Early Tenure") THEN "Early Tenure"
  END AS E_TenureFinalFlag,
 CASE
 WHEN (B_FMCType = "Soft FMC" OR B_FMCType = "Near FMC" OR B_FMCType = "Undefined FMC") AND B_MIX = "1P"  THEN "P2"
@@ -185,8 +181,10 @@ WHEN (FixedChurnTypeFlag is not null and MobileChurnFlag is null) then "Fixed Ch
 WHEN FixedChurnTypeFlag is null and activebom=1 and mobile_activebom=1 AND (activeeom=0 or activeeom is null) and (Mobile_ActiveEOM=0 or mobile_activeeom Is null) THEN "Full Churner"
 WHEN (FixedChurnTypeFlag is null and MobileChurnFlag is NOT null) then "Mobile Churner"
 WHEN ActiveBom=1 AND ActiveEOM=0 AND Mobile_Month IS NULL THEN "Fixed churner - Customer Gap"
-ELSE "Non Churner" END AS FinalChurnFlag,
- round(ifnull(TOTAL_E_MRC,0) - ifnull(TOTAL_B_MRC,0),0) AS MRC_Change
+ELSE "Non Churner" END AS FinalChurnFlag
+,(coalesce(B_NumRGUs,0) + coalesce(B_MobileRGUs,0)) as B_TotalRGUs
+,(coalesce(E_NumRGUs,0) + coalesce(E_MobileRGUs,0)) AS E_TotalRGUs
+,round(ifnull(TOTAL_E_MRC,0) - ifnull(TOTAL_B_MRC,0),0) AS MRC_Change
 FROM CustomerBase_FMC_Tech_Flags c
 )
 
@@ -194,7 +192,7 @@ FROM CustomerBase_FMC_Tech_Flags c
   SELECT DISTINCT  f.*
 ,CASE WHEN Fixed_Rejoiner = 1 AND E_FMC_Segment = "P1_Fixed" THEN "Fixed Rejoiner"
 WHEN (Fixed_Rejoiner = 1) OR ((Fixed_Rejoiner = 1) and  (E_FMCType = "Soft FMC" OR E_FMCType = "Near FMC")) THEN "FMC Rejoiner"
-WHEN Mobile_Rejoiner IS NOT NULL AND E_FMC_Segment = "P1_Mobile" THEN "Mobile Rejoiner"
+WHEN Mobile_Rejoinermonth IS NOT NULL AND E_FMC_Segment = "P1_Mobile" THEN "Mobile Rejoiner"
 END AS Rejoiner_FinalFlag,
 FROM CustomerBase_FMCSegments_ChurnFlag f
 )
@@ -252,6 +250,15 @@ WHEN (Final_BOM_ActiveFlag = 0 and Final_EOM_ActiveFlag = 1)  AND (ActiveBOM=0 A
 END AS Waterfall_Flag
 FROM RejoinerColumn f
 )
+,Last_Flags as(
+select *
+,Case when waterfall_flag='Downsell' and MainMovement='Downsell' then 'Voluntary'
+      when waterfall_flag='Downsell' and FinalChurnFlag <> 'Non Churner' then ChurnTypeFinalFlag
+      when waterfall_flag='Downsell' and mainmovement='Loss' then 'Undefined'
+else null end as Downsell_Split
+,case when waterfall_flag='Downspin' then 'Voluntary' else null end as Downspin_Split
+from FullCustomersBase_Flags_Waterfall
+)
 
-SELECT Distinct * FROM FullCustomersBase_Flags_Waterfall
---WHERE Month='2022-02-01'
+select distinct *
+from Last_Flags
