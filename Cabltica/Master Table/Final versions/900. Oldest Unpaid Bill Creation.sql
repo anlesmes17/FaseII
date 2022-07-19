@@ -1,3 +1,8 @@
+--CREATE OR REPLACE TABLE
+--`gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING` AS
+
+
+
 WITH
 
 
@@ -34,7 +39,7 @@ ON PF=Factura
 ------------------- The field "Fecha_Exteaccion" is the equivalent to "Load_dt" in other Opco's. Use Load_dt instead
 
 ,CRM as(
-  SELECT DISTINCT * FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
+  SELECT DISTINCT * FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022`
 )
 
 ,Bill_and_Payment_Add AS( -- Brings current bill and payment of current bill
@@ -95,6 +100,6 @@ group by 1
 
 --,FI_Outst_Age as(--This query calculates the outstanding days of every user
 Select Distinct * except(Bill_Payment_Date,Payment_Prev_Bill,Prev_Bill,NoPaymentBill,MonthFirstPaidBill,PaymentFirstPaidBill,MonthLastPaidBill,PaymentLastPaidBill)
-,date_diff(Fecha_Extraccion,OLDEST_UNPAID_BILL_DT_NEW,Day) as FI_OUTST_AGE
+,date_diff(Fecha_Extraccion,OLDEST_UNPAID_BILL_DT_NEW,Day) as FI_OUTST_AGE_NEW
 FROM OldestStepOne
 --)
