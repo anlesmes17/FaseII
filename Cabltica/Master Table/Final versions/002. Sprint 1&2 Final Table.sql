@@ -182,8 +182,8 @@ WHEN FixedChurnTypeFlag is null and activebom=1 and mobile_activebom=1 AND (acti
 WHEN (FixedChurnTypeFlag is null and MobileChurnFlag is NOT null) then "Mobile Churner"
 WHEN ActiveBom=1 AND ActiveEOM=0 AND Mobile_Month IS NULL THEN "Fixed churner - Customer Gap"
 ELSE "Non Churner" END AS FinalChurnFlag
-,(coalesce(B_NumRGUs,0) + coalesce(B_MobileRGUs,0)) as B_TotalRGUs
-,(coalesce(E_NumRGUs,0) + coalesce(E_MobileRGUs,0)) AS E_TotalRGUs
+,((coalesce(B_NumRGUs,0) + coalesce(B_MobileRGUs,0))/ContractsFix) as B_TotalRGUs
+,((coalesce(E_NumRGUs,0) + coalesce(E_MobileRGUs,0))/ContractsFix) AS E_TotalRGUs
 ,round(ifnull(TOTAL_E_MRC,0) - ifnull(TOTAL_B_MRC,0),0) AS MRC_Change
 FROM CustomerBase_FMC_Tech_Flags c
 )
