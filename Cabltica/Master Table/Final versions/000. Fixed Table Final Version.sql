@@ -8,18 +8,25 @@ UsefulFields AS(
 SELECT DISTINCT DATE_TRUNC (safe_cast(FECHA_EXTRACCION as date), MONTH) AS Month,FECHA_EXTRACCION, act_acct_cd, pd_vo_prod_id, pd_vo_prod_nm, PD_TV_PROD_ID,
 PD_TV_PROD_CD, pd_bb_prod_id, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE, Min(ACT_ACCT_INST_DT) as MinInst, CST_CHRN_DT AS ChurnDate, DATE_DIFF(safe_cast(FECHA_EXTRACCION as date), safe_cast(OLDEST_UNPAID_BILL_DT as date),DAY) AS MORA, ACT_CONTACT_MAIL_1,round(VO_FI_TOT_MRC_AMT,0) AS mrcVO, round(BB_FI_TOT_MRC_AMT,0) AS mrcBB, round(TV_FI_TOT_MRC_AMT,0) AS mrcTV,round((VO_FI_TOT_MRC_AMT + BB_FI_TOT_MRC_AMT + TV_FI_TOT_MRC_AMT),0) as avgmrc, round(TOT_BILL_AMT,0) AS Bill, ACT_ACCT_SIGN_DT,
 
-CASE WHEN pd_vo_prod_id IS NOT NULL THEN 1 ELSE 0 END AS RGU_VO,
-CASE WHEN pd_tv_prod_cd IS NOT NULL THEN 1 ELSE 0 END AS RGU_TV,
-CASE WHEN pd_bb_prod_id IS NOT NULL THEN 1 ELSE 0 END AS RGU_BB,
+CASE WHEN pd_vo_prod_id IS NOT NULL and pd_vo_prod_id<>"" THEN 1 ELSE 0 END AS RGU_VO,
+CASE WHEN pd_tv_prod_cd IS NOT NULL and pd_tv_prod_id<>"" THEN 1 ELSE 0 END AS RGU_TV,
+CASE WHEN pd_bb_prod_id IS NOT NULL and pd_bb_prod_id<>"" THEN 1 ELSE 0 END AS RGU_BB,
 
 CASE 
-WHEN PD_VO_PROD_ID IS NOT NULL AND PD_BB_PROD_ID IS NOT NULL AND PD_TV_PROD_ID IS NOT NULL THEN "3P"
-WHEN PD_VO_PROD_ID IS NULL AND PD_BB_PROD_ID IS NOT NULL AND PD_TV_PROD_ID IS NOT NULL THEN "2P"
-WHEN PD_VO_PROD_ID IS NOT NULL AND PD_BB_PROD_ID IS NULL AND PD_TV_PROD_ID IS NOT NULL THEN"2P"
-WHEN PD_VO_PROD_ID IS NOT NULL AND PD_BB_PROD_ID IS NOT NULL AND PD_TV_PROD_ID IS NULL THEN"2P"
+WHEN PD_VO_PROD_ID IS NOT NULL and pd_vo_prod_id<>"" AND PD_BB_PROD_ID IS NOT NULL and pd_bb_prod_id<>"" 
+AND PD_TV_PROD_ID IS NOT NULL and pd_tv_prod_id<>"" THEN "3P"
+
+WHEN (PD_VO_PROD_ID IS NULL or pd_vo_prod_id="")  AND PD_BB_PROD_ID IS NOT NULL and pd_bb_prod_id<>"" 
+AND PD_TV_PROD_ID IS NOT NULL and pd_tv_prod_id<>"" THEN "2P"
+
+WHEN PD_VO_PROD_ID IS NOT NULL and pd_vo_prod_id<>"" AND (PD_BB_PROD_ID IS NULL or pd_bb_prod_id="") 
+AND PD_TV_PROD_ID IS NOT NULL and pd_tv_prod_id<>"" THEN"2P"
+
+WHEN PD_VO_PROD_ID IS NOT NULL and pd_vo_prod_id<>"" AND PD_BB_PROD_ID IS NOT NULL and pd_bb_prod_id<>"" 
+AND (PD_TV_PROD_ID IS NULL or pd_tv_prod_id="") THEN"2P"
 ELSE "1P" END AS MIX
 
-FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
+FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022`
 GROUP BY Month, FECHA_EXTRACCION, ACT_ACCT_cd, PD_VO_PROD_ID,pd_vo_prod_nm, PD_TV_PROD_ID,
 PD_TV_PROD_CD, pd_bb_prod_id, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE,CST_CHRN_DT, OLDEST_UNPAID_BILL_DT, VO_FI_TOT_MRC_AMT, BB_FI_TOT_MRC_AMT, TV_FI_TOT_MRC_AMT, VO_FI_TOT_MRC_AMT, BB_FI_TOT_MRC_AMT, TV_FI_TOT_MRC_AMT, ACT_CONTACT_MAIL_1,mrcVO,mrcBB,mrcTV, Bill,ACT_ACCT_SIGN_DT
 )
@@ -116,7 +123,7 @@ PD_TV_PROD_CD, pd_bb_prod_id, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE,CST_CHRN_D
 )
 
 ,ServiceOrders AS (
-    SELECT * FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_ORDENES_SERVICIO_2021-01_A_2022-05_D`
+    SELECT * FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220713_CR_ORDENES_SERVICIO_2021-01_A_2022-06_D`
 )
 
 
@@ -150,7 +157,7 @@ PD_TV_PROD_CD, pd_bb_prod_id, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE,CST_CHRN_D
 
 ,MAX_SO_CHURN AS(
  SELECT DISTINCT RIGHT(CONCAT('0000000000',NOMBRE_CONTRATO) ,10) AS CONTRATOSO, DATE_TRUNC(MAX(FECHA_APERTURA),Month) as DeinstallationMonth, MAX(FECHA_APERTURA) AS FECHA_CHURN
- FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_ORDENES_SERVICIO_2021-01_A_2022-05_D`
+ FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220713_CR_ORDENES_SERVICIO_2021-01_A_2022-06_D`
  WHERE
   TIPO_ORDEN = "DESINSTALACION" 
   AND (ESTADO <> "CANCELADA" OR ESTADO <> "ANULADA")
@@ -163,7 +170,7 @@ PD_TV_PROD_CD, pd_bb_prod_id, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE,CST_CHRN_D
   CASE WHEN submotivo="MOROSIDAD" THEN "Involuntary"
   WHEN submotivo <> "MOROSIDAD" THEN "Voluntary"
   END AS Submotivo
- FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_ORDENES_SERVICIO_2021-01_A_2022-05_D` t
+ FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220713_CR_ORDENES_SERVICIO_2021-01_A_2022-06_D` t
  INNER JOIN MAX_SO_CHURN m on RIGHT(CONCAT('0000000000',t.NOMBRE_CONTRATO) ,10) = m.contratoso and fecha_apertura = fecha_churn
  WHERE
   TIPO_ORDEN = "DESINSTALACION" 
@@ -172,19 +179,19 @@ PD_TV_PROD_CD, pd_bb_prod_id, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE,CST_CHRN_D
 )
 
 ,MaximaFecha as(
-  select distinct RIGHT(CONCAT('0000000000',act_acct_cd) ,10) as act_acct_cd, max(fecha_extraccion) as MaxFecha FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
+  select distinct RIGHT(CONCAT('0000000000',act_acct_cd) ,10) as act_acct_cd, max(fecha_extraccion) as MaxFecha FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022`
   group by 1
 )
 
 ,ChurnersJoin as(
-select Distinct f.Fecha_Extraccion,f.act_acct_cd,Submotivo,DeinstallationMonth,DeinstallationDate,MaxFecha FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022` f
+select Distinct f.Fecha_Extraccion,f.act_acct_cd,Submotivo,DeinstallationMonth,DeinstallationDate,MaxFecha FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022` f
 left join churnersso c on contratoso=RIGHT(CONCAT('0000000000',f.act_acct_cd) ,10) and date_trunc(fecha_extraccion,Month)=DeinstallationMonth
 left join MaximaFecha m on RIGHT(CONCAT('0000000000',f.act_acct_cd) ,10)=RIGHT(CONCAT('0000000000',m.act_acct_cd) ,10)
 )
 
 ,MaxFechaJoin as(
 select Fecha_extraccion,DeinstallationMonth as DxMonth,act_acct_cd,
-CASE WHEN date_diff(MaxFecha,DeinstallationMonth,Month)<=2 THEN Submotivo
+CASE WHEN date_diff(MaxFecha,DeinstallationMonth,Month)<=1 THEN Submotivo
 ELSE NULL END AS FixedChurnTypeFlag
 FROM Churnersjoin
 WHERE Submotivo IS NOT NULL
@@ -225,11 +232,13 @@ THEN 1 ELSE 0 END AS Fixed_Rejoiner
 FROM ChurnersFixedTable f LEFT JOIN FixedRejoinerFebPopulation r ON f.Fixed_Account=r.Fixed_Account AND f.Fixed_Month=SAFE_CAST(r.Month AS DATE)
 )
 
---,FinalTable as(
+,FinalTable as(
 SELECT *,CASE
 WHEN FixedChurnTypeFlag is not null THEN b_NumRGUs
 WHEN MainMovement="Downsell" THEN (B_NumRGUs - ifnull(E_NumRGUs,0))
 ELSE NULL END AS RGU_Churn,
 CONCAT(ifnull(B_VO_nm,""),ifnull(B_TV_nm,""),ifnull(B_BB_nm,"")) AS B_PLAN,CONCAT(ifnull(E_VO_nm,""),ifnull(E_TV_nm,""),ifnull(E_BB_nm,"")) AS E_PLAN
 FROM FullFixedBase_Rejoiners
---)
+)
+
+Select * From FinalTable
