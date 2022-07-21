@@ -19,62 +19,63 @@ FinalTable AS (
   date_trunc(act_acct_sign_dt,Month) as Sales_Month,
   date_trunc(date(act_acct_inst_dt),Month) as Install_Month,
   act_acct_cd
-  From `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
+  From `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING`
 )
 
 ,installs_fmc_table as(
-  select f.*,Sales_Month,Install_Month
+  select f.*,Sales_Month,Install_Month,
   From FinalTablePlanAdj f left join install_data b
   ON b.act_acct_cd=Fixed_Account and Month=safe_cast(Install_Month as string)
 )
 
+,sales_fmc_table as(
+    Select f.*, b.act_acct_cd as monthsale_flag 
+    From installs_fmc_table f left join `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING` b
+    ON act_acct_cd=Fixed_Account and Month=safe_cast(date_trunc(date_add(act_acct_sign_dt, INTERVAL 1 Month),Month) as string)
+)
+
 
 ####################################### Involuntarios Never Paid ###############################################
-,Installations AS (
-    SELECT DATE_TRUNC(FECHA_INSTALACION,MONTH) AS InstallationMonth,act_acct_cd, INSTALLATION_DT,monthsale_Flag
 
-    FROM (
-        SELECT ACT_ACCT_CD, MIN(safe_cast(ACT_ACCT_INST_DT as date)) AS FECHA_INSTALACION,DATE(MIN(ACT_ACCT_INST_DT)) AS INSTALLATION_DT,
-        CASE WHEN ACT_ACCT_CD IS NOT NULL THEN ACT_ACCT_CD ELSE NULL END AS monthsale_Flag
-        FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
-        GROUP BY 1
-    )
-    GROUP BY 1,2,3,4
+,FirstBill as(
+    Select Distinct act_acct_cd as ContratoFirstBill,Min(Bill_DT_M0) FirstBillEmitted
+    From `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING`
+    group by 1
 )
 
-,churn AS (
-    SELECT CONTRATOCRM, CHURNTYPEFLAGSO, MAX(FechaChurn) AS FECHA_CHURN, DATE_TRUNC(MAX(FechaChurn),Month) AS CHURN_MONTH
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-03-06_ChurnTypeFlagChurners_D`
-    WHERE CHURNTYPEFLAGSO = 'Involuntario'
-    GROUP BY 1,2
+,Prueba as(
+    Select distinct Date_Trunc(Fecha_Extraccion,Month),act_acct_cd,OLDEST_UNPAID_BILL_DT_NEW,FI_OUTST_AGE_NEW,date_trunc(min(act_acct_sign_dt),Month) as Sales_Month,Fecha_Extraccion
+    From `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING`
+    group by 1,2,3,4,6
 )
 
-,InstallationChurners AS(
-  SELECT V.*,CONTRATOCRM, FECHA_CHURN, CHURNTYPEFLAGSO, CHURN_MONTH, 
-  FROM Installations v LEFT JOIN churn ON safe_cast(RIGHT(CONCAT('0000000000',act_acct_cd),10) as string)=safe_cast(RIGHT(CONCAT('0000000000',CONTRATOCRM),10) as string)
+,JoinFirstBill as(
+    Select Sales_Month,a.act_acct_cd,FI_OUTST_AGE_NEW,Fecha_Extraccion
+    FROM Prueba a inner join FirstBill b
+    on ContratoFirstBill=act_acct_cd and FirstBillEmitted=OLDEST_UNPAID_BILL_DT_NEW
+    order by 2,3,4
 )
 
-,never_paid_flag AS (
-SELECT DISTINCT d.*, c.act_acct_cd as InstallationAccount,DATE_TRUNC(MIN(safe_cast(ACT_ACCT_INST_DT as date)),MONTH) AS InstallationMonth,CHURNTYPEFLAGSO,CHURN_MONTH,
-DATE_DIFF(CST_CHRN_DT,ACT_ACCT_INST_DT,DAY) AS DAYS_WO_PAYMENT,
-CASE WHEN DATE_DIFF(CST_CHRN_DT,ACT_ACCT_INST_DT,DAY) <= 119 THEN d.ACT_ACCT_CD ELSE NULL END AS NeverPaid_Flag
-FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022` d
-RIGHT JOIN InstallationChurners c
-    ON d.ACT_ACCT_CD = CAST(c.CONTRATOCRM AS INT) AND d.FECHA_EXTRACCION = DATE(c.FECHA_CHURN)
-    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,
-    37,38,40,41,42,43
+,MaxOutstAge as(
+    Select Distinct Sales_Month,act_acct_cd,Max(FI_OUTST_AGE_NEW) as Outstanding_Days,
+    Case when Max(FI_OUTST_AGE_NEW)>=26 Then act_acct_cd ELSE NULL END AS SoftDx_Flag,
+    Case when Max(FI_OUTST_AGE_NEW)>=90 Then act_acct_cd ELSE NULL END AS NeverPaid_Flag,
+    From JoinFirstBill
+    group by 1,2
+    order by 2,3
+)
+
+,SoftDx_MasterTable as(
+    Select f.*,SoftDx_Flag 
+    From sales_fmc_table f left join MaxOutstAge b ON act_acct_cd=Fixed_Account and safe_cast(b.Sales_Month as string)=Month
+)
+
+,NeverPaid_MasterTable as(
+    Select f.*,NeverPaid_Flag
+    From SoftDx_MasterTable f left join MaxOutstAge b ON act_acct_cd=Fixed_Account and safe_cast(b.Sales_Month as string)=Month
 )
 
 
-,NeverPaids AS(
-  SELECT DISTINCT f.*,InstallationAccount,CHURNTYPEFLAGSO, NeverPaid_Flag,  
-  FROM installs_fmc_table f LEFT JOIN never_paid_flag c ON safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string)=safe_cast(RIGHT(CONCAT('0000000000',c.InstallationAccount),10) as string) AND safe_cast(InstallationMonth as string)=Month 
-ORDER BY NeverPaid_Flag DESC
-)
-,NeverPaidMasterTable AS(
-SELECT DISTINCT m.*, monthsale_Flag
-FROM NeverPaids m LEFT JOIN Installations v ON Month=safe_cast(v.InstallationMonth as string) AND v.act_acct_cd=Fixed_Account 
-)
 
 ##################################################################### Early Interactions #########################################################
 
@@ -109,7 +110,7 @@ FROM NeverPaids m LEFT JOIN Installations v ON Month=safe_cast(v.InstallationMon
 
 ,Early_interaction_MasterTable AS(
   SELECT DISTINCT f.*,early_interaction as EarlyIssue_Flag,Interaction_Month
-  FROM NeverPaidMasterTable f LEFT JOIN account_summary_interactions c 
+  FROM NeverPaid_MasterTable f LEFT JOIN account_summary_interactions c 
   ON safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) as string)=safe_cast(c.Account_ID as string) AND safe_cast( Interaction_Month as string)=Month 
 )
 
@@ -178,7 +179,7 @@ ON safe_cast(CONTRATO AS string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Accou
 
 ######################################### Soft dx first bill #####################################################
 
-
+/*
 ,sales_gen AS (
     SELECT DISTINCT ACT_ACCT_CD, MIN(ACT_ACCT_INST_DT) AS FECHA_INSTALACION
     FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
@@ -231,11 +232,11 @@ SELECT DISTINCT F.*, SoftDx_Flag,
 FROM BillingCallsMasterTable f LEFT JOIN SOFT_DX_INSTALLS s
 ON safe_cast(s.act_acct_cd AS string)=safe_cast(Fixed_Account AS string) AND DATE_TRUNC(safe_cast(s.FECHA_INSTALACION as date),MONTH)=safe_cast(Month as date)
 )
-
+*/
 ############################################## Bill shocks #####################################################
 
 ,AbsMRC AS (
-SELECT *, abs(mrc_change) AS Abs_MRC_Change FROM SalesMasterTable
+SELECT *, abs(mrc_change) AS Abs_MRC_Change FROM BillingCallsMasterTable
 
 )
 ,BillShocks AS (
@@ -291,14 +292,14 @@ group by 1,2,3,formato_fecha
 )
 
 ,SalesChannelsInstallations as (
-select distinct act_acct_cd, contrato,InstallationMonth, Categoria_Canal, subcanal_venta,
-from Installations left join FechaFin
-on RIGHT(CONCAT('0000000000',CONTRATO),10)=RIGHT(CONCAT('0000000000',ACT_ACCT_CD),10) and InstallationMonth=date_trunc(FechaFinal,month)
+select distinct Fixed_Account, contrato,Install_Month, Categoria_Canal, subcanal_venta,
+from installs_fmc_table left join FechaFin
+on RIGHT(CONCAT('0000000000',CONTRATO),10)=RIGHT(CONCAT('0000000000',Fixed_Account),10) and Install_Month=date_trunc(FechaFinal,month)
 
 )
 ,ChannelsMasterTable AS (
-    select distinct f.*, categoria_canal, subcanal_venta, from OutliersMasterTable f left join SalesChannelsInstallations
-    on RIGHT(CONCAT('0000000000',CONTRATO),10)=RIGHT(CONCAT('0000000000',Fixed_Account),10) AND safe_cast(InstallationMonth as string)=Month
+    select distinct f.*, categoria_canal, subcanal_venta, from OutliersMasterTable f left join SalesChannelsInstallations s
+    on RIGHT(CONCAT('0000000000',CONTRATO),10)=RIGHT(CONCAT('0000000000',f.Fixed_Account),10) AND safe_cast(s.Install_Month as string)=Month
 )
 ,ChannelAndSubchannel AS (
   SELECT distinct *, CASE
@@ -344,4 +345,3 @@ from FinalSalesChannel
 Where finalchurnflag<>"Fixed Churner" AND finalchurnflag<>"Customer Gap" AND finalchurnflag<>"Full Churner" AND finalchurnflag<>"Churn Exception"
 Group by 1,2,3,4,15,16,17
 Order by 1 desc, 2,3,4
-
