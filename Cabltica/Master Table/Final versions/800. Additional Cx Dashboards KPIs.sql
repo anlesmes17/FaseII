@@ -144,3 +144,4 @@ From SuccessfulCalls_MasterTable
 where month<>"2020-12-01" and Month <>"2022-06-01"
 group by 1
 order by 1
+
