@@ -1,3 +1,8 @@
+--CREATE OR REPLACE TABLE
+
+--`gcp-bia-tmps-vtr-dev-01.lla_temp_dna_tables.2022-04-18_Cabletica_Final_Additional_Cx_Table_DashboardInput_v2` AS
+
+
 WITH
 
 fmc_table as(
@@ -76,6 +81,53 @@ FROM AbsMRC
 )
 
 
+######################################################################## FTR Billing ################################################################################
+
+,BillingCalls as (
+  Select distinct * From `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_TIQUETES_SERVICIO_2021-01_A_2022-05_D`
+  WHERE CLASE IS NOT NULL AND MOTIVO IS NOT NULL AND CONTRATO IS NOT NULL
+  AND ESTADO <> "ANULADA" AND TIPO <> "GESTION COBRO" AND MOTIVO = "CONSULTAS DE FACTURACION O COBRO"
+)
+
+,CallsWithoutSolution as(
+  Select distinct a.Fecha_Apertura,a.Tiquete_ID, a.Contrato
+  From BillingCalls a left join billingCalls b ON a.Contrato=b.Contrato
+  Where date_diff(b.Fecha_Apertura,a.Fecha_Apertura,Day) between 0 and 14 and a.Tiquete_ID<>b.Tiquete_ID
+  order by 3,1
+)
+
+,MultipleCallsFix as(
+  Select distinct Fecha_Apertura,Max(Tiquete_ID) as Tiquete_ID,Contrato
+  From CallsWithoutSolution
+  group by 1,3
+  order by 3,1
+)
+
+,AllBillingCallsJoin as(
+  Select Distinct a.Fecha_Apertura,a.Contrato,a.Tiquete_ID,b.Tiquete_ID as RepeatedIssue
+  From BillingCalls a left join MultipleCallsFix b
+  ON a.Contrato=b.Contrato and a.Tiquete_ID=b.Tiquete_ID
+  Where b.Tiquete_ID is null
+)
+
+,UniqueSuccesfulCalls as(
+  Select Distinct Fecha_Apertura,Contrato,Max(Tiquete_ID) as Tiquete_ID
+  From AllBillingCallsJoin
+  group by 1,2
+)
+
+,SuccesfulCallsPerClient as(
+  Select distinct date_trunc(Fecha_Apertura,Month) as TicketMonth,Contrato,Count(distinct Tiquete_ID) as ResolvedBilling
+  From UniqueSuccesfulCalls
+  group by 1,2
+)
+
+,SuccessfulCalls_MasterTable as(
+  Select f.*,ResolvedBilling/ContractsFix as ResolvedBillingCalls
+  From BillVariationCalls_MasterTable f left join SuccesfulCallsPerClient
+  On Month=safe_cast(TicketMonth as string) and Fixed_Account=Contrato
+)
+
 
 ############################################################## Grouped Table ##########################################################################################
 
@@ -86,7 +138,9 @@ round(sum(CareCall_Flag),0) as CareCalls,
 round(sum(CareCall_Flag)*1000/sum(B_NumRGUs),0) as CareCallsPer1kRGU,
 Count(distinct BillVariation_Flag) as BillVariations,
 sum(BillingCalls) as BillingCalls,
-round(sum(BillingCalls)/Count(distinct BillVariation_Flag),3) as BillingCallsPerBillVariation
-From BillVariationCalls_MasterTable
+round(sum(BillingCalls)/Count(distinct BillVariation_Flag),3) as BillingCallsPerBillVariation,
+round(sum(ResolvedBillingCalls),0) as FTR_Billing
+From SuccessfulCalls_MasterTable
+where month<>"2020-12-01" and Month <>"2022-06-01"
 group by 1
 order by 1
