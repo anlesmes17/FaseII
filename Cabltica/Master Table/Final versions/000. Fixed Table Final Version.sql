@@ -26,7 +26,7 @@ WHEN PD_VO_PROD_ID IS NOT NULL and pd_vo_prod_id<>"" AND PD_BB_PROD_ID IS NOT NU
 AND (PD_TV_PROD_ID IS NULL or pd_tv_prod_id="") THEN"2P"
 ELSE "1P" END AS MIX
 
-FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022`
+FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING`
 GROUP BY Month, FECHA_EXTRACCION, ACT_ACCT_cd, PD_VO_PROD_ID,pd_vo_prod_nm, PD_TV_PROD_ID,
 PD_TV_PROD_CD, pd_bb_prod_id, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE,CST_CHRN_DT, OLDEST_UNPAID_BILL_DT, VO_FI_TOT_MRC_AMT, BB_FI_TOT_MRC_AMT, TV_FI_TOT_MRC_AMT, VO_FI_TOT_MRC_AMT, BB_FI_TOT_MRC_AMT, TV_FI_TOT_MRC_AMT, ACT_CONTACT_MAIL_1,mrcVO,mrcBB,mrcTV, Bill,ACT_ACCT_SIGN_DT
 )
@@ -179,12 +179,12 @@ PD_TV_PROD_CD, pd_bb_prod_id, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE,CST_CHRN_D
 )
 
 ,MaximaFecha as(
-  select distinct RIGHT(CONCAT('0000000000',act_acct_cd) ,10) as act_acct_cd, max(fecha_extraccion) as MaxFecha FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022`
+  select distinct RIGHT(CONCAT('0000000000',act_acct_cd) ,10) as act_acct_cd, max(fecha_extraccion) as MaxFecha FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING`
   group by 1
 )
 
 ,ChurnersJoin as(
-select Distinct f.Fecha_Extraccion,f.act_acct_cd,Submotivo,DeinstallationMonth,DeinstallationDate,MaxFecha FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022` f
+select Distinct f.Fecha_Extraccion,f.act_acct_cd,Submotivo,DeinstallationMonth,DeinstallationDate,MaxFecha FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING` f
 left join churnersso c on contratoso=RIGHT(CONCAT('0000000000',f.act_acct_cd) ,10) and date_trunc(fecha_extraccion,Month)=DeinstallationMonth
 left join MaximaFecha m on RIGHT(CONCAT('0000000000',f.act_acct_cd) ,10)=RIGHT(CONCAT('0000000000',m.act_acct_cd) ,10)
 )
