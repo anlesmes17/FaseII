@@ -81,7 +81,7 @@ FinalTable AS (
 
 ,Initial_Table_Interactions as(
   select date_trunc(Fecha_Apertura,Month) as Interaction_Month,RIGHT(CONCAT('0000000000',CONTRATO),10) AS Contrato,Tiquete_ID,min(Fecha_Apertura) as interaction_start_time
-  FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_TIQUETES_SERVICIO_2021-01_A_2022-05_D`
+  FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220713_CR_TIQUETES_SERVICIO_2021-01_A_2022-06_D`
   where CLASE IS NOT NULL AND MOTIVO IS NOT NULL AND CONTRATO IS NOT NULL
   and ESTADO <> "ANULADA" and TIPO <> "GESTION COBRO" and MOTIVO <> "LLAMADA  CONSULTA DESINSTALACION" AND subarea<>"VENTA VIRTUAL" AND subarea<>"FECHA Y HORA DE VISITA"
   and subarea<>"FECHA Y HORA DE VISITA WEB"
@@ -91,7 +91,7 @@ FinalTable AS (
 ,Installation_Interactions AS (
     SELECT date_trunc(min(act_acct_sign_dt),Month) as Sales_Month,RIGHT(CONCAT('0000000000',ACT_ACCT_CD),10) AS act_acct_cd,min(act_acct_sign_dt) as act_acct_sign_dt,
     min(act_acct_inst_dt) as  act_acct_inst_dt,date_trunc(min(act_acct_inst_dt),Month) as Inst_Month
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING`
     GROUP BY 2
 )
 
@@ -119,16 +119,16 @@ FinalTable AS (
 
 ,Initial_Table_Tickets as(
   select date_trunc(Fecha_Apertura,Month) as Ticket_Month,RIGHT(CONCAT('0000000000',CONTRATO),10) AS Contrato,Tiquete,min(Fecha_Apertura) as interaction_start_time
-  FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_TIQUETES_AVERIA_2021-01_A_2022-05_D`
+  FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220713_CR_TIQUETES_AVERIA_2021-01_A_2022-06_D`
   WHERE Clase is not null and Motivo is not null and Contrato is not null and estado <> "ANULADA"
-  AND TIQUETE NOT IN (SELECT DISTINCT TIQUETE FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_TIQUETES_AVERIA_2021-01_A_2022-05_D` WHERE CLIENTE LIKE '%SIN PROBLEMA%')
+  AND TIQUETE NOT IN (SELECT DISTINCT TIQUETE FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220713_CR_TIQUETES_AVERIA_2021-01_A_2022-06_D` WHERE CLIENTE LIKE '%SIN PROBLEMA%')
   group by 1,2,3
 )
 
 ,Installation_contracts AS (
     SELECT date_trunc(min(act_acct_sign_dt),Month) as Sales_Month,RIGHT(CONCAT('0000000000',ACT_ACCT_CD),10) AS act_acct_cd,min(act_acct_sign_dt) as act_acct_sign_dt,
     min(act_acct_inst_dt) as  act_acct_inst_dt,date_trunc(min(act_acct_inst_dt),Month) as Inst_Month
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING`
     GROUP BY 2
 )
 
@@ -157,7 +157,7 @@ FinalTable AS (
 
 ,CALLS AS (
 SELECT RIGHT(CONCAT('0000000000',CONTRATO),10) AS CONTRATO, DATE_TRUNC(FECHA_APERTURA, MONTH) AS Call_Month, TIQUETE_ID
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_TIQUETES_SERVICIO_2021-01_A_2022-05_D`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220713_CR_TIQUETES_SERVICIO_2021-01_A_2022-06_D`
     WHERE 
         CLASE IS NOT NULL AND MOTIVO IS NOT NULL AND CONTRATO IS NOT NULL
         AND ESTADO <> "ANULADA"
@@ -182,12 +182,12 @@ ON safe_cast(CONTRATO AS string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Accou
 /*
 ,sales_gen AS (
     SELECT DISTINCT ACT_ACCT_CD, MIN(ACT_ACCT_INST_DT) AS FECHA_INSTALACION
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING`
     GROUP BY 1
 )
 ,first_bill AS (
     SELECT ACT_ACCT_CD, MIN(oldest_unpaid_bill_dt) AS f_bill
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING`
     GROUP BY 1
     ORDER BY 1
 )
@@ -197,7 +197,7 @@ ON safe_cast(CONTRATO AS string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Accou
         SELECT *,
             FIRST_VALUE(FECHA_EXTRACCION IGNORE NULLS) OVER (PARTITION BY ACT_ACCT_CD ORDER BY FECHA_EXTRACCION) AS PRIMER_DNA,
             FIRST_VALUE(OLDEST_UNPAID_BILL_DT IGNORE NULLS) OVER (PARTITION BY ACT_ACCT_CD ORDER BY FECHA_EXTRACCION) AS PRIMER_OLDEST_UNPAID
-        FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
+        FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING`
     )
     WHERE ACT_ACCT_INST_DT >= '2021-01-01'
 )
@@ -245,7 +245,7 @@ FROM AbsMRC
 
 ,INSTALACIONES_OUTLIER AS (
     SELECT DISTINCT RIGHT(CONCAT('0000000000',ACT_ACCT_CD),10) AS ACT_ACCT_CD, /*DATE(MIN(ACT_ACCT_INST_DT)) AS INSTALLATION_DT,*/ DATE_TRUNC(DATE(MIN(ACT_ACCT_INST_DT)),MONTH) AS InstallationMonth
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
+    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING`
     GROUP BY 1
 )
 
