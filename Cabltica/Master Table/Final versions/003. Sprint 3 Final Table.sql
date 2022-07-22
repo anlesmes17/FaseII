@@ -25,7 +25,7 @@ FinalTable AS (
 ,installs_fmc_table as(
   select f.*,Sales_Month,Install_Month,
   From FinalTablePlanAdj f left join install_data b
-  ON b.act_acct_cd=Fixed_Account and Month=safe_cast(Install_Month as string)
+  ON b.act_acct_cd=Fixed_Account --and Month=safe_cast(Install_Month as string)
 )
 
 ,sales_fmc_table as(
@@ -35,7 +35,7 @@ FinalTable AS (
 )
 
 
-####################################### Involuntarios Never Paid ###############################################
+####################################### Soft Dx & Never Paid ###############################################
 
 ,FirstBill as(
     Select Distinct act_acct_cd as ContratoFirstBill,Min(Bill_DT_M0) FirstBillEmitted
@@ -185,14 +185,12 @@ ON safe_cast(CONTRATO AS string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Accou
     FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
     GROUP BY 1
 )
-
 ,first_bill AS (
     SELECT ACT_ACCT_CD, MIN(oldest_unpaid_bill_dt) AS f_bill
     FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-06-08_CR_HISTORIC_CRM_ENE_2021_MAY_2022`
     GROUP BY 1
     ORDER BY 1
 )
-
 ,clean_dna AS (
     SELECT *, CASE WHEN LST_PYM_DT < PRIMER_OLDEST_UNPAID THEN NULL ELSE LST_PYM_DT END AS LAST_PAYMENT_DT
     FROM (
@@ -203,7 +201,6 @@ ON safe_cast(CONTRATO AS string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Accou
     )
     WHERE ACT_ACCT_INST_DT >= '2021-01-01'
 )
-
 ,first_bill_dna AS (
     SELECT d.*
     FROM clean_dna d
@@ -211,7 +208,6 @@ ON safe_cast(CONTRATO AS string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Accou
         ON (d.ACT_ACCT_CD = f.ACT_ACCT_CD AND d.oldest_unpaid_bill_dt = f.f_bill)
     WHERE d.ACT_ACCT_INST_DT >= '2021-01-01'
 )
-
 ,summary AS (
     SELECT DISTINCT
             act_acct_cd, 
@@ -226,7 +222,6 @@ ON safe_cast(CONTRATO AS string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Accou
     SELECT a.FECHA_INSTALACION, a.ACT_ACCT_CD, b.SoftDx_Flag FROM sales_gen a LEFT JOIN summary b 
     ON a.FECHA_INSTALACION=b.act_cust_strt_dt AND a.ACT_ACCT_CD=b.ACT_ACCT_CD
     )
-
 ,SalesMasterTable AS (
 SELECT DISTINCT F.*, SoftDx_Flag,
 FROM BillingCallsMasterTable f LEFT JOIN SOFT_DX_INSTALLS s
