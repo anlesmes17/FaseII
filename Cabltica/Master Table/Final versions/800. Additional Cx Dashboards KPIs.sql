@@ -77,7 +77,7 @@ FROM AbsMRC
 
 ,BillVariationCalls_MasterTable as(
   Select f.*,BillingCalls From BillVariation_MasterTable f left join BillVariation_Calls
-  ON Contrato=RIGHT(CONCAT('0000000000',Fixed_Account),10) and Month=safe_cast(CallMonth as string)
+  ON Contrato=RIGHT(CONCAT('0000000000',BillVariation_flag),10) and Month=safe_cast(CallMonth as string)
 )
 
 
@@ -128,6 +128,20 @@ FROM AbsMRC
   On Month=safe_cast(TicketMonth as string) and Fixed_Account=Contrato
 )
 
+,AllBillingRelatedCalls as(
+  Select distinct date_trunc(Fecha_Apertura,Month) as CallMonth,Contrato,count(distinct Tiquete_ID) as AllBillingCalls
+  From `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220623_CR_TIQUETES_SERVICIO_2021-01_A_2022-05_D`
+  WHERE CLASE IS NOT NULL AND MOTIVO IS NOT NULL AND CONTRATO IS NOT NULL
+  AND ESTADO <> "ANULADA" AND TIPO <> "GESTION COBRO" AND MOTIVO = "CONSULTAS DE FACTURACION O COBRO"
+  group by 1,2
+)
+
+,AllBillingCalls_MasterTable as(
+  Select f.*,round(AllBillingCalls/ContractsFix,0) as AllBillingCalls 
+  From SuccessfulCalls_MasterTable f left join AllBillingRelatedCalls 
+  ON Contrato=Fixed_Account and Month=safe_cast(CallMonth as string)
+)
+
 
 ############################################################## Grouped Table ##########################################################################################
 
@@ -139,9 +153,10 @@ round(sum(CareCall_Flag)*1000/sum(B_NumRGUs),0) as CareCallsPer1kRGU,
 Count(distinct BillVariation_Flag) as BillVariations,
 sum(BillingCalls) as BillingCalls,
 round(sum(BillingCalls)/Count(distinct BillVariation_Flag),3) as BillingCallsPerBillVariation,
-round(sum(ResolvedBillingCalls),0) as FTR_Billing
-From SuccessfulCalls_MasterTable
+round(sum(ResolvedBillingCalls),0) as FTR_Billing,
+sum(AllBillingCalls) as AllBillingCalls,
+round(sum(ResolvedBillingCalls)/sum(AllBillingCalls),3) as FTR_Billing_KPI
+From AllBillingCalls_MasterTable
 where month<>"2020-12-01" and Month <>"2022-06-01"
 group by 1
 order by 1
-
