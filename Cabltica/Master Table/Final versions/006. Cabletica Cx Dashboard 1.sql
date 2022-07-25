@@ -90,6 +90,26 @@ group by 1,2,3,4,5,6,7
 )
 */
 
+,service_delivery as(
+  Select Distinct safe_cast(Month as string) as Month,'CT' as Opco,'Costa_Rica' as Market,'Large' as MarketSize,'Fixed' as Product,'B2C' as Biz_Unit,sum(Installations) as Install,
+  round(sum(Inst_MTTI)/sum(Installations),2) as MTTI,sum(Repairs) as Repairs,round(sum(Rep_MTTR)/sum(Repairs),2) as MTTR,round(sum(scr),2) as Repairs_1k_rgu,
+  round((sum(FTR_Install_M)/sum(Installations))/100,4) as FTR_Install,round((sum(FTR_Repair_M)/sum(Repairs))/100,4) as FTR_Repair
+
+From(
+  Select Distinct Date_Trunc(End_Week_Date,Month) as Month,Network,End_Week_Date,sum(Total_Subscribers) as Total_Users,sum(Assisted_Installations) as Installations,sum(mtti) as MTTI, 
+  sum(Assisted_Installations)*sum(mtti) as Inst_MTTI,sum(truck_rolls) as Repairs,sum(mttr) as MTTR,sum(truck_rolls)*sum(mttr) as Rep_MTTR,sum(scr) as SCR,(100-sum(i_elf_28days)) as
+  FTR_Install,(100-sum(r_elf_28days)) as FTR_Repair,(100-sum(i_elf_28days))*sum(Assisted_Installations) as FTR_Install_M,(100-sum(r_elf_28days))*sum(truck_rolls) as FTR_Repair_M
+  from `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220725_Service_Delivery_KPIResults`
+  where market='Costa Rica' and network='OVERALL'
+  group by 1,2,3
+  order by 1,2,3) group by 1,2,3,4,5,6 order by 1,2,3,4,5,6
+)
+
+
+
+
+
+
 
 ########################################################################### All Flags KPIs ################################################################################
 --Prev Calculated
@@ -170,6 +190,29 @@ round(Customers_w_MRC_Changes,4) as kpi_meas,mrc_change as kpi_num,noplan_custom
 
 --Pendiente incluir Mounting Bill
 
+,installs as(
+select distinct month,Opco,Market,MarketSize,Product,Biz_Unit,'contact_drivers' as facet,'get' as journey_waypoint,'Installs' as kpi_name, Install as kpi_meas, null as kpi_num,	null as kpi_den from service_delivery)
+,MTTI as(
+select distinct month,Opco,Market,MarketSize,Product,Biz_Unit,'customer_time' as facet,'get' as journey_waypoint,'MTTI' as kpi_name, mtti as kpi_meas, null as kpi_num,	null as kpi_den from service_delivery)
+,ftr_installs as(
+select distinct month,Opco,Market,MarketSize,Product,Biz_Unit,'effectiveness' as facet,'get' as journey_waypoint,'%FTR_installs' as kpi_name, ftr_install as kpi_meas, null as kpi_num,	null as kpi_den from service_delivery)
+,justrepairs as(
+select distinct month,Opco,Market,MarketSize,Product,Biz_Unit,'contact_drivers' as facet,'support-tech' as journey_waypoint,'Repairs' as kpi_name, repairs as kpi_meas, null as kpi_num,	null as kpi_den from service_delivery)
+,mttr as(
+select distinct month,Opco,Market,MarketSize,Product,Biz_Unit,'Customer_time' as facet,'support-tech' as journey_waypoint,'MTTR' as kpi_name, mttr as kpi_meas, null as kpi_num,	null as kpi_den from service_delivery)
+,ftrrepair as(
+select distinct month,Opco,Market,MarketSize,Product,Biz_Unit,'effectiveness' as facet,'support-tech' as journey_waypoint,'%FTR_Repair' as kpi_name, ftr_repair as kpi_meas, null as kpi_num,	null as kpi_den from service_delivery)
+,repairs1k as(
+select distinct month,Opco,Market,MarketSize,Product,Biz_Unit,'contact_intensity' as facet,'support-tech' as journey_waypoint,'Repairs_per_1k_rgu' as kpi_name, Repairs_1k_rgu as kpi_meas, null as kpi_num,	null as kpi_den from service_delivery)
+
+
+
+
+
+
+
+
+
 ############################################################## Join Flags ###########################################################################
 
 ,Join_DNA_KPIS as(
@@ -233,18 +276,19 @@ select distinct month,'CT' as Opco, 'Costa_Rica' as Market,'Large' as MarketSize
 select distinct month,'CT' as Opco, 'Costa_Rica' as Market,'Large' as MarketSize,'Fixed' as Product,'B2C' as Biz_Unit,'contact_intensity' as facet,'buy' as journey_waypoint,'Buying_Calls/GA' as kpi_name, null as kpi_meas, null as kpi_num,	null as kpi_den, null as KPI_Sla, null as Kpi_delay_display,	extract (year from date(Month)) as ref_year, extract(month from date(month)) as ref_mo from fmc_table)
 
 --GET
+/*
 ,MTTI as(
 select distinct month,'CT' as Opco, 'Costa_Rica' as Market,'Large' as MarketSize,'Fixed' as Product,'B2C' as Biz_Unit,'customer_time' as facet,'get' as journey_waypoint,'MTTI' as kpi_name, null as kpi_meas, null as kpi_num,	null as kpi_den, null as KPI_Sla, null as Kpi_delay_display,	extract (year from date(Month)) as ref_year, extract(month from date(month)) as ref_mo from fmc_table)
-
+*/
 ,tinstall as(
 select distinct month,'CT' as Opco, 'Costa_Rica' as Market,'Large' as MarketSize,'Fixed' as Product,'B2C' as Biz_Unit,'NPS_Detractorship' as facet,'get' as journey_waypoint,'tInstall' as kpi_name, null as kpi_meas, null as kpi_num,	null as kpi_den, null as KPI_Sla, null as Kpi_delay_display,	extract (year from date(Month)) as ref_year, extract(month from date(month)) as ref_mo from fmc_table)
-
+/*
 ,ftr_installs as(
 select distinct month,'CT' as Opco, 'Costa_Rica' as Market,'Large' as MarketSize,'Fixed' as Product,'B2C' as Biz_Unit,'effectiveness' as facet,'get' as journey_waypoint,'%FTR_installs' as kpi_name, null as kpi_meas, null as kpi_num,	null as kpi_den, null as KPI_Sla, null as Kpi_delay_display,	extract (year from date(Month)) as ref_year, extract(month from date(month)) as ref_mo from fmc_table)
 
 ,installs as(
 select distinct month,'CT' as Opco, 'Costa_Rica' as Market,'Large' as MarketSize,'Fixed' as Product,'B2C' as Biz_Unit,'contact_drivers' as facet,'get' as journey_waypoint,'Installs' as kpi_name, null as kpi_meas, null as kpi_num,	null as kpi_den, null as KPI_Sla, null as Kpi_delay_display,	extract (year from date(Month)) as ref_year, extract(month from date(month)) as ref_mo from fmc_table)
-
+*/
 ,selfinstalls as(
 select distinct month,'CT' as Opco, 'Costa_Rica' as Market,'Large' as MarketSize,'Fixed' as Product,'B2C' as Biz_Unit,'digital_shift' as facet,'get' as journey_waypoint,'%self_installs' as kpi_name, null as kpi_meas, null as kpi_num,	null as kpi_den, null as KPI_Sla, null as Kpi_delay_display,	extract (year from date(Month)) as ref_year, extract(month from date(month)) as ref_mo from fmc_table)
 
@@ -270,7 +314,7 @@ select distinct month,'CT' as Opco, 'Costa_Rica' as Market,'Large' as MarketSize
 
 ,helprepair as(
 select distinct month,'CT' as Opco, 'Costa_Rica' as Market,'Large' as MarketSize,'Fixed' as Product,'B2C' as Biz_Unit,'NPS_Detractorship' as facet,'support-tech' as journey_waypoint,'tHelp_repair' as kpi_name, null as kpi_meas, null as kpi_num,	null as kpi_den, null as KPI_Sla, null as Kpi_delay_display,	extract (year from date(Month)) as ref_year, extract(month from date(month)) as ref_mo from fmc_table)
-
+/*
 ,ftrrepair as(
 select distinct month,'CT' as Opco, 'Costa_Rica' as Market,'Large' as MarketSize,'Fixed' as Product,'B2C' as Biz_Unit,'effectiveness' as facet,'support-tech' as journey_waypoint,'%FTR_Repair' as kpi_name, null as kpi_meas, null as kpi_num,	null as kpi_den, null as KPI_Sla, null as Kpi_delay_display,	extract (year from date(Month)) as ref_year, extract(month from date(month)) as ref_mo from fmc_table)
 
@@ -279,6 +323,7 @@ select distinct month,'CT' as Opco, 'Costa_Rica' as Market,'Large' as MarketSize
 
 ,repairs1k as(
 select distinct month,'CT' as Opco, 'Costa_Rica' as Market,'Large' as MarketSize,'Fixed' as Product,'B2C' as Biz_Unit,'contact_intensity' as facet,'support-tech' as journey_waypoint,'Repairs_per_1k_rgu' as kpi_name, null as kpi_meas, null as kpi_num,	null as kpi_den, null as KPI_Sla, null as Kpi_delay_display,	extract (year from date(Month)) as ref_year, extract(month from date(month)) as ref_mo from fmc_table)
+*/
 --use
 ,highrisk as(
 select distinct month,'CT' as Opco, 'Costa_Rica' as Market,'Large' as MarketSize,'Fixed' as Product,'B2C' as Biz_Unit,'high_risk' as facet,'use' as journey_waypoint,'%_High_Tech_Call_Nodes_+6%monthly' as kpi_name, null as kpi_meas, null as kpi_num,	null as kpi_den, null as KPI_Sla, null as Kpi_delay_display,	extract (year from date(Month)) as ref_year, extract(month from date(month)) as ref_mo from fmc_table)
@@ -316,6 +361,7 @@ union all select Month,Opco,Market,MarketSize,Product,Biz_Unit,facet,journey_way
 union all select Month,Opco,Market,MarketSize,Product,Biz_Unit,facet,journey_waypoint,kpi_name,kpi_meas,kpi_num,kpi_den,null as KPI_Sla, null as Kpi_delay_display from Buyingcalls
 
 union all select Month,Opco,Market,MarketSize,Product,Biz_Unit,facet,journey_waypoint,kpi_name,kpi_meas,kpi_num,kpi_den,null as KPI_Sla, null as Kpi_delay_display from MTTI
+union all select Month,Opco,Market,MarketSize,Product,Biz_Unit,facet,journey_waypoint,kpi_name,kpi_meas,kpi_num,kpi_den,null as KPI_Sla, null as Kpi_delay_display from MTTR
 union all select Month,Opco,Market,MarketSize,Product,Biz_Unit,facet,journey_waypoint,kpi_name,kpi_meas,kpi_num,kpi_den,null as KPI_Sla, null as Kpi_delay_display from tinstall
 union all select Month,Opco,Market,MarketSize,Product,Biz_Unit,facet,journey_waypoint,kpi_name,kpi_meas,kpi_num,kpi_den,null as KPI_Sla, null as Kpi_delay_display from ftr_installs
 union all select Month,Opco,Market,MarketSize,Product,Biz_Unit,facet,journey_waypoint,kpi_name,kpi_meas,kpi_num,kpi_den,null as KPI_Sla, null as Kpi_delay_display from installs
@@ -344,6 +390,10 @@ union all select Month,Opco,Market,MarketSize,Product,Biz_Unit,facet,journey_way
 union all select Month,Opco,Market,MarketSize,Product,Biz_Unit,facet,journey_waypoint,kpi_name,kpi_meas,kpi_num,kpi_den,null as KPI_Sla, null as Kpi_delay_display from MountingBill_Flag
 ))
 
+,CX_Dashboard as(
 Select Month,Opco,Market,MarketSize,Product,Biz_Unit,journey_waypoint,facet,kpi_name,kpi_meas,kpi_num,kpi_den,KPI_Sla,Kpi_delay_display,extract (year from date(Month)) as ref_year,
 extract(month from date(month))
 From All_KPIs
+)
+
+Select * From CX_Dashboard
