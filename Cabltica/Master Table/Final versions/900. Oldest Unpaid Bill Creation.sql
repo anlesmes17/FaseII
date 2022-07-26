@@ -86,20 +86,22 @@ group by 1
 
 ,OldestStepOne as(--This query selects the correct oldest unpaid bill given the clients current status
   SELECT DISTINCT f.*, CASE
-  WHEN Fecha_Extraccion<date(PaymentFirstPaidBill) and Fecha_Extraccion>=MonthFirstPaidBill THEN MonthFirstPaidBill
+  WHEN Fecha_Extraccion<date(PaymentFirstPaidBill) and Fecha_Extraccion>=MonthFirstPaidBill and (Fecha_extraccion>=MonthFirstPaidBill) THEN MonthFirstPaidBill
   WHEN Fecha_Extraccion>=DATE(Bill_Payment_Date) THEN NULL
-  WHEN DATE(Bill_Payment_Date)>Fecha_Extraccion AND Payment_Prev_Bill IS NULL AND Prev_Bill IS NULL THEN Bill_Dt_M0
-  WHEN Fecha_Extraccion<DATE(Bill_Payment_Date) AND Fecha_Extraccion<DATE(Payment_Prev_Bill) THEN Prev_Bill
-  WHEN FECHA_EXTRACCION>=DATE(Payment_Prev_Bill) AND Fecha_Extraccion<=DATE(Bill_Payment_Date) THEN Bill_Dt_M0
-  WHEN Bill_Payment_Date IS NULL AND Payment_Prev_Bill IS NOT NUll AND FECHA_EXTRACCION<DATE(Payment_Prev_Bill) THEN Prev_Bill
-  WHEN Bill_DT_M0 IS NOT NULL THEN NoPaymentBill
+  WHEN DATE(Bill_Payment_Date)>Fecha_Extraccion AND Payment_Prev_Bill IS NULL AND Prev_Bill IS NULL and (Fecha_extraccion>=Bill_Dt_M0) THEN Bill_Dt_M0
+  WHEN Fecha_Extraccion<DATE(Bill_Payment_Date) AND Fecha_Extraccion<DATE(Payment_Prev_Bill) and (Fecha_extraccion>=Prev_Bill) THEN Prev_Bill
+  WHEN FECHA_EXTRACCION>=DATE(Payment_Prev_Bill) AND Fecha_Extraccion<=DATE(Bill_Payment_Date) and (Fecha_extraccion>=Bill_Dt_M0) THEN Bill_Dt_M0
+  WHEN Bill_Payment_Date IS NULL AND Payment_Prev_Bill IS NOT NUll AND FECHA_EXTRACCION<DATE(Payment_Prev_Bill) and (Fecha_extraccion>=Prev_Bill) THEN Prev_Bill
+  WHEN Bill_DT_M0 IS NOT NULL and (Fecha_extraccion>=NoPaymentBill) THEN NoPaymentBill
   WHEN Fecha_Extraccion<date(PaymentLastPaidBill) and Fecha_Extraccion>=MonthLastPaidBill THEN MonthLastPaidBill
   ELSE Null END AS OLDEST_UNPAID_BILL_DT_NEW--This is the field we are creating, its final name should be "OLDEST_UNPAID_BILL_DT"
   FROM FistPaidBillIntegration f
 )
 
---,FI_Outst_Age as(--This query calculates the outstanding days of every user
+,FI_Outst_Age_Calc as(--This query calculates the outstanding days of every user
 Select Distinct * except(Bill_Payment_Date,Payment_Prev_Bill,Prev_Bill,NoPaymentBill,MonthFirstPaidBill,PaymentFirstPaidBill,MonthLastPaidBill,PaymentLastPaidBill)
 ,date_diff(Fecha_Extraccion,OLDEST_UNPAID_BILL_DT_NEW,Day) as FI_OUTST_AGE_NEW
 FROM OldestStepOne
---)
+)
+
+Select * From FI_Outst_Age_Calc
