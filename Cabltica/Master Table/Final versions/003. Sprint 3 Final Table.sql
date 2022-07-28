@@ -177,57 +177,7 @@ FROM CallsMasterTable f LEFT JOIN CallsPerUser
 ON safe_cast(CONTRATO AS string)=safe_cast(RIGHT(CONCAT('0000000000',Fixed_Account),10) AS string) AND safe_cast(Call_Month as string)=Month
 )
 
-######################################### Soft dx first bill #####################################################
 
-/*
-,sales_gen AS (
-    SELECT DISTINCT ACT_ACCT_CD, MIN(ACT_ACCT_INST_DT) AS FECHA_INSTALACION
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING`
-    GROUP BY 1
-)
-,first_bill AS (
-    SELECT ACT_ACCT_CD, MIN(oldest_unpaid_bill_dt) AS f_bill
-    FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING`
-    GROUP BY 1
-    ORDER BY 1
-)
-,clean_dna AS (
-    SELECT *, CASE WHEN LST_PYM_DT < PRIMER_OLDEST_UNPAID THEN NULL ELSE LST_PYM_DT END AS LAST_PAYMENT_DT
-    FROM (
-        SELECT *,
-            FIRST_VALUE(FECHA_EXTRACCION IGNORE NULLS) OVER (PARTITION BY ACT_ACCT_CD ORDER BY FECHA_EXTRACCION) AS PRIMER_DNA,
-            FIRST_VALUE(OLDEST_UNPAID_BILL_DT IGNORE NULLS) OVER (PARTITION BY ACT_ACCT_CD ORDER BY FECHA_EXTRACCION) AS PRIMER_OLDEST_UNPAID
-        FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING`
-    )
-    WHERE ACT_ACCT_INST_DT >= '2021-01-01'
-)
-,first_bill_dna AS (
-    SELECT d.*
-    FROM clean_dna d
-    INNER JOIN first_bill f
-        ON (d.ACT_ACCT_CD = f.ACT_ACCT_CD AND d.oldest_unpaid_bill_dt = f.f_bill)
-    WHERE d.ACT_ACCT_INST_DT >= '2021-01-01'
-)
-,summary AS (
-    SELECT DISTINCT
-            act_acct_cd, 
-            min(ACT_ACCT_INST_DT) as act_cust_strt_dt,
-            DATE_TRUNC(min(ACT_ACCT_INST_DT),MONTH) AS MONTH_INSTALLATION,
-            CASE WHEN (max(fi_outst_age) >=26 ) then act_acct_cd ELSE NULL END AS SoftDx_Flag,
-    FROM first_bill_dna
-    GROUP BY 1
-    ORDER BY ACT_ACCT_CD
-    )
-    ,SOFT_DX_INSTALLS AS (
-    SELECT a.FECHA_INSTALACION, a.ACT_ACCT_CD, b.SoftDx_Flag FROM sales_gen a LEFT JOIN summary b 
-    ON a.FECHA_INSTALACION=b.act_cust_strt_dt AND a.ACT_ACCT_CD=b.ACT_ACCT_CD
-    )
-,SalesMasterTable AS (
-SELECT DISTINCT F.*, SoftDx_Flag,
-FROM BillingCallsMasterTable f LEFT JOIN SOFT_DX_INSTALLS s
-ON safe_cast(s.act_acct_cd AS string)=safe_cast(Fixed_Account AS string) AND DATE_TRUNC(safe_cast(s.FECHA_INSTALACION as date),MONTH)=safe_cast(Month as date)
-)
-*/
 ############################################## Bill shocks #####################################################
 
 ,AbsMRC AS (
@@ -272,6 +222,28 @@ FROM AbsMRC
     FROM BillShocks f LEFT JOIN Installations_6_days b ON safe_cast(b.ACT_ACCT_CD as string)=RIGHT(CONCAT('0000000000',Fixed_Account),10) AND Month=safe_cast(InstallationMonth AS string)
 )
 
+
+######################################## Mounting Bills #####################################################
+
+,BillingInfo as(
+  Select distinct date_trunc(Fecha_extraccion,Month) as Month,act_acct_cd,OLDEST_UNPAID_BILL_DT_NEW,Bill_Dt_M0
+  From `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-07-15_CR_HISTORIC_CRM_ENE_2021_JUL_2022_BILLING`
+  where fecha_extraccion=date_trunc(fecha_extraccion,Month)
+)
+
+,MountingBillJoin as(
+  Select distinct b.Month as MountingBillMonth,b.act_acct_cd as MountingBill_Flag
+  From BillingInfo a inner join BillingInfo b 
+  ON a.act_acct_cd=b.act_acct_cd and a.OLDEST_UNPAID_BILL_DT_NEW=b.OLDEST_UNPAID_BILL_DT_NEW and a.Month=date_add(b.Month, INTERVAL -1 MONTH)
+  Where b.Bill_Dt_M0 IS NOT NULL
+)
+
+,MountingBills_MasterTable as(
+  Select f.*,MountingBill_Flag From OutliersMasterTable f left join MountingBillJoin 
+  ON Month=safe_cast(MountingBillMonth as string) and Fixed_Account=MountingBill_Flag
+)
+
+
 ######################################## Sales Channel ######################################################
 
 ,SalesChannel as (
@@ -293,7 +265,7 @@ on RIGHT(CONCAT('0000000000',CONTRATO),10)=RIGHT(CONCAT('0000000000',Fixed_Accou
 
 )
 ,ChannelsMasterTable AS (
-    select distinct f.*, categoria_canal, subcanal_venta, from OutliersMasterTable f left join SalesChannelsInstallations s
+    select distinct f.*, categoria_canal, subcanal_venta, from MountingBills_MasterTable f left join SalesChannelsInstallations s
     on RIGHT(CONCAT('0000000000',CONTRATO),10)=RIGHT(CONCAT('0000000000',f.Fixed_Account),10) AND safe_cast(s.Install_Month as string)=Month
 )
 ,ChannelAndSubchannel AS (
@@ -335,8 +307,9 @@ count(distinct monthsale_flag) as Sales, count(distinct SoftDx_Flag) as Soft_Dx,
 count(distinct NeverPaid_Flag) as NeverPaid, count(distinct long_install_flag) as Long_installs, 
 count (distinct increase_flag) as MRC_Change, count (distinct no_plan_change_flag) as NoPlan_Changes,
 count(distinct EarlyIssue_Flag) as EarlyIssueCall, count(distinct TechCall_Flag) as TechCalls,
-count(distinct BillClaim_Flag) as BillClaim,categoria_canal,sales_Month,Install_Month
+count(distinct BillClaim_Flag) as BillClaim,
+count(distinct MountingBill_Flag) as MountingBills,categoria_canal,sales_Month,Install_Month
 from FinalSalesChannel
 Where finalchurnflag<>"Fixed Churner" AND finalchurnflag<>"Customer Gap" AND finalchurnflag<>"Full Churner" AND finalchurnflag<>"Churn Exception"
-Group by 1,2,3,4,15,16,17
+Group by 1,2,3,4,16,17,18
 Order by 1 desc, 2,3,4
