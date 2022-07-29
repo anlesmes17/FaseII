@@ -371,4 +371,15 @@ Select Month,Opco,Market,MarketSize,Product,Biz_Unit,journey_waypoint,facet,kpi_
 From All_KPIs
 )
 
-Select * From CX_Dashboard
+--,OverallKPIs as(
+  Select Distinct Month,Opco,Market,MarketSize,Product,Biz_Unit,journey_waypoint,facet,kpi_name, CASE 
+  WHEN kpi_num IS NULL AND kpi_den IS NULL THEN sum(kpi_meas)
+  WHEN kpi_num IS NOT NULL AND kpi_den IS NOT NULL THEN safe_divide(sum(kpi_num),sum(kpi_den))
+  ELSE NULL END AS kpi_meas,
+  ifnull(sum(kpi_num),0) as kpi_numm,
+  ifnull(sum(kpi_den),0) as kpi_denn,
+  "Overall" as Network,
+  extract (year from date(Month)) as ref_year,extract(month from date(month)) as ref_mo
+  From CX_Dashboard
+  group by 1,2,3,4,5,6,7,8,9,kpi_num,kpi_den
+--)
