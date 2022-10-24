@@ -103,10 +103,28 @@ FROM MobileCustomerBase
 WHERE Mobile_ActiveBOM=1 AND Mobile_ActiveEOM=0
 )
 
---,RejoinersPopulation AS(
+,RejoinersPopulation AS(
 SELECT f.*,RejoinerMonth
 ,CASE WHEN i.Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS RejoinerPopFlag
 -- Variabilizar
 ,CASE WHEN RejoinerMonth>=Mobile_Month AND RejoinerMonth<=DATE_ADD('Month',1, Mobile_Month) THEN 1 ELSE 0 END AS Mobile_PRMonth
 FROM MobileCustomerBase f LEFT JOIN InactiveUsersMonth i ON f.Mobile_Account=i.Mobile_Account AND Mobile_Month=ExitMonth
---)
+)
+
+,MobileRejoinerPopulation AS(
+SELECT DISTINCT Mobile_Month,RejoinerPopFlag,Mobile_PRMonth,Mobile_Account,Cast('2022-02-01' as date) AS Month
+FROM RejoinersPopulation
+WHERE RejoinerPopFlag=1
+AND Mobile_PRMonth=1
+AND Mobile_Month<> cast('2022-02-01' as date)
+GROUP BY 1,2,3,4
+)
+
+,FullMobileBase_Rejoiners AS(
+SELECT DISTINCT f.*,Mobile_PRMonth
+,CASE WHEN Mobile_PRMonth=1 AND MobileMovementFlag='05.Come Back To Life'
+THEN f.Mobile_Account ELSE NULL END AS Mobile_RejoinerMonth
+FROM CustomerBaseWithChurn f LEFT JOIN MobileRejoinerPopulation r ON f.Mobile_Account=r.Mobile_Account AND f.Mobile_Month=Month 
+)
+
+Select * From FullMobileBase_Rejoiners
