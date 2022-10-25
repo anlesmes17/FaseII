@@ -128,3 +128,4 @@ FROM CustomerBaseWithChurn f LEFT JOIN MobileRejoinerPopulation r ON f.Mobile_Ac
 )
 
 Select * From FullMobileBase_Rejoiners
+
