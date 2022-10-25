@@ -1,3 +1,5 @@
+--CREATE TABLE IF NOT EXISTS "lla_cco_int_san"."cr_mobile_table" AS
+
 WITH
 
 MobileUsefulFields as(
