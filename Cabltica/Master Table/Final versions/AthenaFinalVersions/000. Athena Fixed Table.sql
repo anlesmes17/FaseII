@@ -1,10 +1,7 @@
---CREATE TABLE IF NOT EXISTS "lla_cco_int_san"."cr_fixed_table" AS
-
-
 WITH 
 UsefulFields AS(
 SELECT DISTINCT DATE_TRUNC ('Month' , cast(dt as date)) AS Month,dt, act_acct_cd, pd_vo_prod_nm, 
-PD_TV_PROD_nm, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE, first_value (ACT_ACCT_INST_DT) over(PARTITION  BY act_acct_cd ORDER BY dt ASC) AS MinInst, CST_CHRN_DT AS ChurnDate, DATE_DIFF('DAY',cast(OLDEST_UNPAID_BILL_DT as date), cast(dt as date)) AS MORA, ACT_CONTACT_MAIL_1,round(FI_VO_MRC_AMT,0) AS mrcVO, round(FI_BB_MRC_AMT,0) AS mrcBB, round(FI_TV_MRC_AMT,0) AS mrcTV,round((FI_VO_MRC_AMT + FI_BB_MRC_AMT + FI_TV_MRC_AMT),0) as avgmrc, round(FI_BILL_AMT_M0,0) AS Bill, ACT_CUST_STRT_DT,
+PD_TV_PROD_nm, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE, first_value (ACT_ACCT_INST_DT) over(PARTITION  BY act_acct_cd ORDER BY dt ASC) AS MinInst, CST_CHRN_DT AS ChurnDate, DATE_DIFF('DAY',cast(OLDEST_UNPAID_BILL_DT as date), cast(dt as date)) AS MORA, ACT_CONTACT_MAIL_1,act_contact_phone_1,round(FI_VO_MRC_AMT,0) AS mrcVO, round(FI_BB_MRC_AMT,0) AS mrcBB, round(FI_TV_MRC_AMT,0) AS mrcTV,round((FI_VO_MRC_AMT + FI_BB_MRC_AMT + FI_TV_MRC_AMT),0) as avgmrc, round(FI_BILL_AMT_M0,0) AS Bill, ACT_CUST_STRT_DT,
 
 CASE WHEN pd_vo_prod_nm IS NOT NULL and pd_vo_prod_nm <>'' THEN 1 ELSE 0 END AS RGU_VO,
 CASE WHEN pd_tv_prod_nm IS NOT NULL and pd_tv_prod_nm <>'' THEN 1 ELSE 0 END AS RGU_TV,
@@ -24,42 +21,47 @@ WHEN PD_VO_PROD_nm IS NOT NULL and pd_vo_prod_nm <>'' AND PD_BB_PROD_nm IS NOT N
 AND (PD_TV_PROD_nm IS NULL or pd_tv_prod_nm ='') THEN '2P'
 ELSE '1P' END AS MIX, pd_bb_tech,
 
-    CASE WHEN pd_bb_prod_nm LIKE '%FTTH%' OR pd_tv_prod_nm ='NextGen TV' THEN 'FTTH'
-    ELSE 'HFC' END AS TechFlag
+CASE 
+WHEN pd_bb_prod_nm LIKE '%FTTH%' OR pd_tv_prod_nm ='NextGen TV' THEN 'FTTH'
+ELSE 'HFC' END AS TechFlag
 
 FROM "db-analytics-dev"."dna_fixed_cr"
---GROUP BY Month, dt, ACT_ACCT_cd, PD_VO_PROD_ID,pd_vo_prod_nm, PD_TV_PROD_ID,
---pd_tv_prod_nm, pd_bb_prod_id, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE,CST_CHRN_DT, OLDEST_UNPAID_BILL_DT, VO_FI_TOT_MRC_AMT, BB_FI_TOT_MRC_AMT, TV_FI_TOT_MRC_AMT, VO_FI_TOT_MRC_AMT, BB_FI_TOT_MRC_AMT, TV_FI_TOT_MRC_AMT, ACT_CONTACT_MAIL_1,mrcVO,mrcBB,mrcTV, Bill,ACT_ACCT_SIGN_DT
+where act_acct_stat='ACTIVO'
 )
 
 
 ,CustomerBase_BOM AS(
-    SELECT DISTINCT DATE_TRUNC('Month', CAST(dt AS DATE)) AS Month, 
-    dt AS B_DATE, c.act_acct_cd AS AccountBOM, pd_vo_prod_nm as B_VO_id, 
-    pd_vo_prod_nm as B_VO_nm, pd_tv_prod_nm AS B_TV_id, pd_tv_prod_nm as B_TV_nm, pd_tv_prod_nm as B_BB_id, pd_bb_prod_nm as B_BB_nm, RGU_VO as B_RGU_VO, RGU_TV as B_RGU_TV, 
-    RGU_BB AS B_RGU_BB, fi_outst_age as B_Overdue, C_CUST_AGE as B_Tenure, MinInst as B_MinInst, MIX AS B_MIX,RGU_VO + RGU_TV + RGU_BB AS B_NumRGUs, 
-    TechFlag as B_TechFlag, MORA AS B_MORA, mrcVO as B_VO_MRC, mrcBB as B_BB_MRC, mrcTV as B_TV_MRC, avgmrc as B_AVG_MRC,
+SELECT DISTINCT DATE_TRUNC('Month', CAST(dt AS DATE)) AS Month, act_acct_cd AS AccountBOM,dt AS B_DATE,act_contact_phone_1 as B_Phone,
+pd_vo_prod_nm as B_VO_nm, pd_tv_prod_nm AS B_TV_nm, pd_bb_prod_nm as B_BB_nm, 
+RGU_VO as B_RGU_VO, RGU_TV as B_RGU_TV, RGU_BB AS B_RGU_BB, fi_outst_age as B_Overdue, C_CUST_AGE as B_Tenure, MinInst as B_MinInst, MIX AS B_MIX,
+(RGU_VO + RGU_TV + RGU_BB) AS B_NumRGUs, TechFlag as B_TechFlag, MORA AS B_MORA, 
+
+mrcVO as B_VO_MRC, mrcBB as B_BB_MRC, mrcTV as B_TV_MRC, avgmrc as B_AVG_MRC,
     BILL AS B_BILL_AMT,ACT_CUST_STRT_DT AS B_ACT_CUST_STRT_DT,
 
-    CASE WHEN (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 0 AND RGU_BB = 1) THEN '1P'
-    WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 1) OR (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 1) THEN '2P'
-    WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 1) THEN '3P' END AS B_Bundle_Type,
+--CASE 
+--WHEN (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 0 AND RGU_BB = 1) 
+--THEN '1P'
+--WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 1) OR (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 1) 
+--THEN '2P'
+--WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 1) THEN '3P' END AS B_Bundle_Type,
 
-    CASE WHEN (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 0) THEN 'VO'
-    WHEN (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 0) THEN 'TV'
-    WHEN (RGU_VO = 0 AND RGU_TV = 0 AND RGU_BB = 1) THEN 'BB'
-    WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 0) THEN 'TV+VO'
-    WHEN (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 1) THEN 'BB+TV'
-    WHEN (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 1) THEN 'BB+VO'
-    WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 1) THEN 'BB+TV+VO' END AS B_BundleName,
+CASE 
+WHEN (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 0) THEN 'VO'
+WHEN (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 0) THEN 'TV'
+WHEN (RGU_VO = 0 AND RGU_TV = 0 AND RGU_BB = 1) THEN 'BB'
+WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 0) THEN 'TV+VO'
+WHEN (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 1) THEN 'BB+TV'
+WHEN (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 1) THEN 'BB+VO'
+WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 1) THEN 'BB+TV+VO' END AS B_BundleName,
 
-    CASE WHEN RGU_BB= 1 THEN act_acct_cd ELSE NULL END As BB_RGU_BOM,
-    CASE WHEN RGU_TV= 1 THEN act_acct_cd ELSE NULL END As TV_RGU_BOM,
-    CASE WHEN RGU_VO= 1 THEN act_acct_cd ELSE NULL END As VO_RGU_BOM,
+CASE WHEN RGU_BB= 1 THEN act_acct_cd ELSE NULL END As BB_RGU_BOM,
+CASE WHEN RGU_TV= 1 THEN act_acct_cd ELSE NULL END As TV_RGU_BOM,
+CASE WHEN RGU_VO= 1 THEN act_acct_cd ELSE NULL END As VO_RGU_BOM
     
-    CASE WHEN (RGU_BB = 1 AND RGU_TV = 0 AND RGU_VO = 0) OR  (RGU_BB = 0 AND RGU_TV = 1 AND RGU_VO = 0) OR (RGU_BB = 0 AND RGU_TV = 0 AND RGU_VO = 1)  THEN '1P'
-    WHEN (RGU_BB = 1 AND RGU_TV = 1 AND RGU_VO = 0) OR (RGU_BB = 1 AND RGU_TV = 0 AND RGU_VO = 1) OR (RGU_BB = 0 AND RGU_TV = 1 AND RGU_VO = 1) THEN '2P'
-    WHEN (RGU_BB = 1 AND RGU_TV = 1 AND RGU_VO = 1) THEN '3P' END AS B_MixCode_Adj
+--CASE WHEN (RGU_BB = 1 AND RGU_TV = 0 AND RGU_VO = 0) OR  (RGU_BB = 0 AND RGU_TV = 1 AND RGU_VO = 0) OR (RGU_BB = 0 AND RGU_TV = 0 AND RGU_VO = 1)  THEN '1P'
+--    WHEN (RGU_BB = 1 AND RGU_TV = 1 AND RGU_VO = 0) OR (RGU_BB = 1 AND RGU_TV = 0 AND RGU_VO = 1) OR (RGU_BB = 0 AND RGU_TV = 1 AND RGU_VO = 1) THEN '2P'
+--    WHEN (RGU_BB = 1 AND RGU_TV = 1 AND RGU_VO = 1) THEN '3P' END AS B_MixCode_Adj
     
     
     FROM UsefulFields c 
@@ -86,15 +88,13 @@ FROM "db-analytics-dev"."dna_fixed_cr"
 --select distinct month, fixed_rejoiner, count(distinct AccountBOM) from FinalCustomerBase_BOM where b_date = '2022-09-02' group by 1,2 order by 1,2
 
 ,CustomerBase_EOM AS(
-    
-    SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS Month, 
-    dt as E_Date, c.act_acct_cd as AccountEOM, pd_vo_prod_nm as E_VO_id, pd_vo_prod_nm as E_VO_nm, pd_tv_prod_nm AS E_TV_id, 
-    pd_tv_prod_nm as E_TV_nm, pd_bb_prod_nm as E_BB_id, pd_bb_prod_nm as E_BB_nm, RGU_VO as E_RGU_VO, RGU_TV as E_RGU_TV, RGU_BB AS E_RGU_BB, fi_outst_age as E_Overdue, 
+SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS Month, dt as E_Date, act_acct_cd as AccountEOM, act_contact_phone_1 as E_Phone, pd_vo_prod_nm as E_VO_nm, 
+    pd_tv_prod_nm as E_TV_nm, pd_bb_prod_nm as E_BB_nm, RGU_VO as E_RGU_VO, RGU_TV as E_RGU_TV, RGU_BB AS E_RGU_BB, fi_outst_age as E_Overdue, 
     TechFlag as E_TechFlag, C_CUST_AGE as E_Tenure, MinInst as E_MinInst, MIX AS E_MIX,
-    RGU_VO + RGU_TV + RGU_BB AS E_NumRGUs,pd_bb_prod_nm AS E_Tech_Type, MORA AS E_MORA, mrcVO AS E_VO_MRC, mrcBB as E_BB_MRC, mrcTV as E_TV_MRC, avgmrc as E_AVG_MRC, BILL AS E_BILL_AMT,ACT_CUST_STRT_DT AS E_ACT_CUST_STRT_DT,
-    CASE WHEN (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 0 AND RGU_BB = 1) THEN '1P'
-    WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 1) OR (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 1) THEN '2P'
-    WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 1) THEN '3P' END AS E_Bundle_Type,
+    (RGU_VO + RGU_TV + RGU_BB) AS E_NumRGUs, MORA AS E_MORA, mrcVO AS E_VO_MRC, mrcBB as E_BB_MRC, mrcTV as E_TV_MRC, avgmrc as E_AVG_MRC, BILL AS E_BILL_AMT,ACT_CUST_STRT_DT AS E_ACT_CUST_STRT_DT,
+--    CASE WHEN (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 0 AND RGU_BB = 1) THEN '1P'
+--    WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 1) OR (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 1) THEN '2P'
+--    WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 1) THEN '3P' END AS E_Bundle_Type,
     CASE WHEN (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 0) THEN 'VO'
     WHEN (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 0) THEN 'TV'
     WHEN (RGU_VO = 0 AND RGU_TV = 0 AND RGU_BB = 1) THEN 'BB'
@@ -104,10 +104,11 @@ FROM "db-analytics-dev"."dna_fixed_cr"
     WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 1) THEN 'BB+TV+VO' END AS E_BundleName,
      CASE WHEN RGU_BB= 1 THEN act_acct_cd ELSE NULL END As BB_RGU_EOM,
     CASE WHEN RGU_TV= 1 THEN act_acct_cd ELSE NULL END As TV_RGU_EOM,
-    CASE WHEN RGU_VO= 1 THEN act_acct_cd ELSE NULL END As VO_RGU_EOM,
-    CASE WHEN (RGU_BB = 1 AND RGU_TV = 0 AND RGU_VO = 0) OR  (RGU_BB = 0 AND RGU_TV = 1 AND RGU_VO = 0) OR (RGU_BB = 0 AND RGU_TV = 0 AND RGU_VO = 1)  THEN '1P'
-    WHEN (RGU_BB = 1 AND RGU_TV = 1 AND RGU_VO = 0) OR (RGU_BB = 1 AND RGU_TV = 0 AND RGU_VO = 1) OR (RGU_BB = 0 AND RGU_TV = 1 AND RGU_VO = 1) THEN '2P'
-    WHEN (RGU_BB = 1 AND RGU_TV = 1 AND RGU_VO = 1) THEN '3P' END AS E_MixCode_Adj
+    CASE WHEN RGU_VO= 1 THEN act_acct_cd ELSE NULL END As VO_RGU_EOM
+    --CASE WHEN (RGU_BB = 1 AND RGU_TV = 0 AND RGU_VO = 0) OR  (RGU_BB = 0 AND RGU_TV = 1 AND RGU_VO = 0) OR (RGU_BB = 0 AND RGU_TV = 0 AND RGU_VO = 1)  THEN '1P'
+    --WHEN (RGU_BB = 1 AND RGU_TV = 1 AND RGU_VO = 0) OR (RGU_BB = 1 AND RGU_TV = 0 AND RGU_VO = 1) OR (RGU_BB = 0 AND RGU_TV = 1 AND RGU_VO = 1) THEN '2P'
+    --WHEN (RGU_BB = 1 AND RGU_TV = 1 AND RGU_VO = 1) THEN '3P' END AS E_MixCode_Adj
+    
     FROM UsefulFields c 
     WHERE date(dt) = DATE_TRUNC('month', date(dt))
     
@@ -140,17 +141,18 @@ FROM "db-analytics-dev"."dna_fixed_cr"
   END AS Fixed_Account,
    CASE WHEN accountBOM IS NOT NULL THEN 1 ELSE 0 END AS ActiveBOM,
    CASE WHEN accountEOM IS NOT NULL THEN 1 ELSE 0 END AS ActiveEOM,
-   B_Date, B_VO_id, B_VO_nm, B_TV_id, B_TV_nm, B_BB_id, B_BB_nm, B_RGU_VO, B_RGU_TV, B_RGU_BB, B_NumRGUs, B_Overdue, B_Tenure, B_MinInst, B_Bundle_Type, B_BundleName,B_MIX, B_TechFlag, B_MORA, B_VO_MRC, B_BB_MRC, B_TV_MRC, B_AVG_MRC, B_BILL_AMT,B_ACT_CUST_STRT_DT,BB_RGU_BOM,TV_RGU_BOM,VO_RGU_BOM,B_MixCode_Adj,
-   E_Date, E_VO_id, E_VO_nm, E_TV_id, E_TV_nm, E_BB_id, E_BB_nm, E_RGU_VO, E_RGU_TV, E_RGU_BB, E_NumRGUs, E_Overdue, E_Tenure, E_MinInst, E_Bundle_Type, E_BundleName,E_MIX, E_TechFlag, E_MORA, E_VO_MRC, E_BB_MRC, E_TV_MRC, E_AVG_MRC, E_BILL_AMT,E_ACT_CUST_STRT_DT,BB_RGU_EOM,TV_RGU_EOM,VO_RGU_EOM,E_MixCode_Adj
+   
+   B_Phone,B_Date, B_VO_nm, B_TV_nm, B_BB_nm, B_RGU_VO, B_RGU_TV, B_RGU_BB, B_NumRGUs, B_Overdue, B_Tenure, B_MinInst, B_BundleName,B_MIX, B_TechFlag, B_MORA, B_VO_MRC, B_BB_MRC, B_TV_MRC, B_AVG_MRC, B_BILL_AMT,B_ACT_CUST_STRT_DT,BB_RGU_BOM,TV_RGU_BOM,VO_RGU_BOM,
+   E_phone,E_Date, E_VO_nm, E_TV_nm, E_BB_nm, E_RGU_VO, E_RGU_TV, E_RGU_BB, E_NumRGUs, E_Overdue, E_Tenure, E_MinInst, E_BundleName,E_MIX, E_TechFlag, E_MORA, E_VO_MRC, E_BB_MRC, E_TV_MRC, E_AVG_MRC, E_BILL_AMT,E_ACT_CUST_STRT_DT,BB_RGU_EOM,TV_RGU_EOM,VO_RGU_EOM
   FROM CustomerBase_BOM b FULL OUTER JOIN CustomerBase_EOM e ON b.AccountBOM = e.AccountEOM AND b.Month = e.Month
 )
 
 ,ServiceOrders AS (
-    SELECT * FROM "db-stage-dev"."so_cr" limit 10
+    SELECT * FROM "db-stage-dev"."so_cr" 
 )
 
 
------------------------------------------------------------Main Movements-----------------------------------------------------------------------------------------
+--------------------------------------Main Movements------------------------------------------
 ,MAINMOVEMENTBASE AS(
  SELECT f.*, CASE
  WHEN (E_NumRGUs - B_NumRGUs)=0 THEN 'Same RGUs'
@@ -180,38 +182,39 @@ FROM "db-analytics-dev"."dna_fixed_cr"
 --------------------------------------------------------------------------- Fixed Churn Flags -------------------------------------------------------------------------------------------
 ------------------------------------------Voluntary & Involuntary-------------------------------------------------------------
 ,MAX_SO_CHURN AS(
- SELECT DISTINCT account_name AS CONTRATOSO, DATE_TRUNC('month',MAX(order_start_date)) as DeinstallationMonth, MAX(order_start_date) AS FECHA_CHURN
- FROM"db-stage-dev"."so_cr"
+ SELECT DISTINCT account_name AS CONTRATOSO, DATE_TRUNC('Month',MAX(order_start_date)) as DeinstallationMonth, MAX(order_start_date) AS FECHA_CHURN
+ FROM "db-stage-dev"."so_cr"
  WHERE
-  order_type = 'DESINSTALACION'
+  order_type = 'DESINSTALACION' 
   AND (order_status <> 'CANCELADA' OR order_status <> 'ANULADA')
  AND order_start_date IS NOT NULL
  GROUP BY 1
 )
 
 ,CHURNERSSO AS(
-  SELECT DISTINCT account_name AS CONTRATOSO, DATE_TRUNC('month', order_start_date) as DeinstallationMonth,order_start_date as DeinstallationDate,
+  SELECT DISTINCT account_name AS CONTRATOSO, DATE_TRUNC('Month',order_start_date) as DeinstallationMonth,
+  order_start_date as DeinstallationDate,
   CASE WHEN command_id like '%MOROSIDAD%' THEN 'Involuntary'
   WHEN command_id not like  '%MOROSIDAD%' THEN 'Voluntary'
   END AS Submotivo
- FROM"db-stage-dev"."so_cr" t
- INNER JOIN MAX_SO_CHURN m on t.account_name = m.contratoso and order_start_date = fecha_churn
+ FROM "db-stage-dev"."so_cr" t
+ INNER JOIN MAX_SO_CHURN m on account_name = m.contratoso and order_start_date = fecha_churn
  WHERE
- order_type = 'DESINSTALACION'
+  order_type = 'DESINSTALACION'
   AND (order_status <> 'CANCELADA' OR order_status <> 'ANULADA')
  AND order_start_date IS NOT NULL
 )
 
 ,MaximaFecha as(
-  select distinct reverse(rpad(substr(reverse(cast(act_acct_cd as varchar)),1,10),10,'0')) as act_acct_cd, max(dt) as MaxFecha FROM "db-analytics-dev"."dna_fixed_cr"
+  select distinct  act_acct_cd, max(dt) as MaxFecha FROM "db-analytics-dev"."dna_fixed_cr"
   group by 1
 )
 
-
 ,ChurnersJoin as(
-select Distinct f.dt,f.act_acct_cd,Submotivo,DeinstallationMonth,DeinstallationDate,MaxFecha FROM "db-analytics-dev"."dna_fixed_cr"  f
-left join churnersso c on contratoso=cast(f.act_acct_cd as varchar) and date_trunc('month',date(dt))=DeinstallationMonth
-left join MaximaFecha m on cast(f.act_acct_cd as varchar)=cast(m.act_acct_cd as varchar)
+select Distinct f.dt,f.act_acct_cd,Submotivo,DeinstallationMonth,DeinstallationDate,MaxFecha 
+FROM "db-analytics-dev"."dna_fixed_cr" f
+left join churnersso c on contratoso=f.act_acct_cd and date_trunc('Month',cast(dt as date))=DeinstallationMonth
+left join MaximaFecha m on f.act_acct_cd=m.act_acct_cd
 )
 
 ,MaxFechaJoin as(
@@ -222,9 +225,10 @@ FROM Churnersjoin
 WHERE Submotivo IS NOT NULL
 )
 
+
 ,ChurnersFixedTable as(
 select f.*,FixedChurnTypeFlag FROM SPINMOVEMENTBASE f left join MaxFechaJoin b
-on Fixed_Month=date_trunc('month',b.DxMonth) and Fixed_Account = reverse(rpad(substr(reverse(cast(b.act_acct_cd as varchar)),1,10),10,'0'))
+on Fixed_Month=date_trunc('Month',b.DxMonth) and Fixed_Account=b.act_acct_cd
 )
 
 
@@ -265,4 +269,7 @@ CONCAT(B_VO_nm,B_TV_nm,B_BB_nm) AS B_PLAN,CONCAT(E_VO_nm,E_TV_nm,E_BB_nm) AS E_P
 FROM FullFixedBase_Rejoiners
 )
 
-Select * From FinalTable
+Select distinct Fixed_Month, FixedChurnTypeFlag,count(*) From FinalTable --limit 10
+--where activeeom=1
+group by 1,2
+order by 1,2
