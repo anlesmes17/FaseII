@@ -273,3 +273,4 @@ Select distinct Fixed_Month, FixedChurnTypeFlag,count(*) From FinalTable --limit
 --where activeeom=1
 group by 1,2
 order by 1,2
+
