@@ -160,10 +160,14 @@ SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS 
  WHEN (E_NumRGUs - B_NumRGUs)>0 THEN '02. Upsell'
  WHEN (E_NumRGUs - B_NumRGUs)<0 then '03. Downsell'
  WHEN (B_NumRGUs IS NULL AND E_NumRGUs > 0 AND DATE_TRUNC ('MONTH', E_ACT_CUST_STRT_DT) <> Fixed_Month) 
- AND date_diff('month',cast(Fixed_Month as timestamp),E_MaxInst)=0 
+ AND date_diff('month',E_MaxInst,cast(Fixed_Month as timestamp))<=1
  THEN '04. Come Back to Life'
- WHEN (B_NumRGUs IS NULL AND E_NumRGUs > 0 AND DATE_TRUNC ('MONTH', E_ACT_CUST_STRT_DT) = Fixed_Month) THEN '05. New Customer'
+ WHEN (B_NumRGUs IS NULL AND E_NumRGUs > 0 AND date_diff('month',E_ACT_CUST_STRT_DT,cast(Fixed_Month as timestamp))<=1)
+ 
+ --DATE_TRUNC ('MONTH', E_ACT_CUST_STRT_DT) = Fixed_Month) 
+ THEN '05. New Customer'
  WHEN ActiveBOM = 1 AND ActiveEOM = 0 THEN '06. Loss'
+ WHEN (B_NumRGUs IS NULL AND E_NumRGUs > 0 AND DATE_TRUNC ('MONTH', E_ACT_CUST_STRT_DT) <> Fixed_Month) Then '07. Missing Customer'
  END AS MainMovement,
  E_RGU_BB - B_RGU_BB as DIF_RGU_BB , E_RGU_TV - B_RGU_TV as DIF_RGU_TV , E_RGU_VO - B_RGU_VO as DIF_RGU_VO , E_NumRGUs - B_NumRGUs as DIF_TOTAL_RGU
  FROM FixedCustomerBase f
@@ -222,7 +226,7 @@ left join MaximaFecha m on f.act_acct_cd=m.act_acct_cd
 
 ,MaxFechaJoin as(
 select dt,DeinstallationMonth as DxMonth,act_acct_cd,
-CASE WHEN date_diff('month',cast(MaxFecha as timestamp),DeinstallationMonth)<=1 THEN Submotivo
+CASE WHEN date_diff('month',DeinstallationMonth,cast(MaxFecha as timestamp))<=1 THEN Submotivo
 ELSE NULL END AS FixedChurnTypeFlag
 FROM Churnersjoin
 WHERE Submotivo IS NOT NULL
@@ -272,7 +276,4 @@ CONCAT(B_VO_nm,B_TV_nm,B_BB_nm) AS B_PLAN,CONCAT(E_VO_nm,E_TV_nm,E_BB_nm) AS E_P
 FROM FullFixedBase_Rejoiners
 )
 
-Select Fixed_Month,MainMovement,count(distinct Fixed_Account) From FinalTable
-where activeeom=1
-group by 1,2
-order by 1,2
+Select distinct * From FinalTable
