@@ -1,3 +1,5 @@
+--CREATE TABLE IF NOT EXISTS "lla_cco_int_san"."cr_fixed_table"  AS  
+
 WITH 
 UsefulFields AS(
 SELECT DISTINCT DATE_TRUNC ('Month' , cast(dt as date)) AS Month,dt, act_acct_cd, pd_vo_prod_nm, 
