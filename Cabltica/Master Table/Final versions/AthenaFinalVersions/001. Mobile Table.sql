@@ -3,23 +3,23 @@
 WITH
 
 MobileUsefulFields as(
-Select distinct cast(fecha_parque as date) as Month, replace(ID_ABONADO,'.','') as ID_ABONADO,NumContrato as FixedContract,Convergente,Num_Telefono,Direccion_Correo,des_segmento_cliente,Renta,
-fec_actcen as StartDate
+Select distinct cast(fecha_parque as date) as Month, replace(ID_ABONADO,'.','') as ID_ABONADO,Contrato as FixedContract,Num_Telefono,Direccion_Correo,des_segmento_cliente,Renta,
+fch_activacion as StartDate
 
---CASE WHEN fec_actcen='#N/D' THEN NULL else date_parse(substring(fec_actcen,1,10),'%d/%m/%Y') END as StartDate 
+--CASE WHEN fch_activacion='#N/D' THEN NULL else date_parse(substring(fch_activacion,1,10),'%d/%m/%Y') END as StartDate 
 
-From "dna_mobile_historic_cr" --limit 10
+From "cr_ext_parque_temp"  --limit 10
 WHERE DES_SEGMENTO_CLIENTE <>'Empresas - Empresas' AND DES_SEGMENTO_CLIENTE <>'Empresas - Pymes'
 
 )
 
 ,CustomerBase_BOM as(
-SELECT DISTINCT date_add('Month',1,Month) as B_Month,ID_ABONADO as B_Mobile_Account,FixedContract as B_FixedContract,Renta as B_Mobile_MRC,Convergente as B_Convergente,Num_Telefono as B_NumTelefono,Direccion_correo B_Correo, StartDate as B_StartDate
+SELECT DISTINCT date_add('Month',1,Month) as B_Month,ID_ABONADO as B_Mobile_Account,FixedContract as B_FixedContract,Renta as B_Mobile_MRC,Num_Telefono as B_NumTelefono,Direccion_correo B_Correo, StartDate as B_StartDate
 From MobileUsefulFields
 )
 
 ,CustomerBase_EOM as(
-SELECT DISTINCT Month as E_Month,ID_ABONADO as E_Mobile_Account,FixedContract as E_FixedContract,Renta as E_Mobile_MRC,Convergente as E_Convergente,Num_Telefono as E_NumTelefono,Direccion_correo as E_Correo, StartDate as E_StartDate
+SELECT DISTINCT Month as E_Month,ID_ABONADO as E_Mobile_Account,FixedContract as E_FixedContract,Renta as E_Mobile_MRC,Num_Telefono as E_NumTelefono,Direccion_correo as E_Correo, StartDate as E_StartDate
 From MobileUsefulFields
 )
 
@@ -88,7 +88,7 @@ WHERE Mobile_ActiveBOM=1 AND Mobile_ActiveEOM=0
 
 ,ChurnersMovements as(
 SELECT M.*,TIPO_BAJA as MobileChurnType
-FROM MobileChurners m LEFT JOIN "cr_ext_mov" 
+FROM MobileChurners m LEFT JOIN "cr_ext_mov_temp" 
 ON Mobile_Account=cast(ID_Abonado as varchar) AND Date_trunc('Month',Mobile_Month)=Date_TRUNC('Month',cast(dt as date))
 )
 
