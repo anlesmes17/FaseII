@@ -1,7 +1,8 @@
 WITH 
 UsefulFields AS(
 SELECT DISTINCT DATE_TRUNC ('Month' , cast(dt as date)) AS Month,dt, act_acct_cd, pd_vo_prod_nm, 
-PD_TV_PROD_nm, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE, first_value (ACT_ACCT_INST_DT) over(PARTITION  BY act_acct_cd ORDER BY dt ASC) AS MinInst, CST_CHRN_DT AS ChurnDate, DATE_DIFF('DAY',cast(OLDEST_UNPAID_BILL_DT as date), cast(dt as date)) AS MORA, ACT_CONTACT_MAIL_1,act_contact_phone_1,round(FI_VO_MRC_AMT,0) AS mrcVO, round(FI_BB_MRC_AMT,0) AS mrcBB, round(FI_TV_MRC_AMT,0) AS mrcTV,round((FI_VO_MRC_AMT + FI_BB_MRC_AMT + FI_TV_MRC_AMT),0) as avgmrc, round(FI_BILL_AMT_M0,0) AS Bill, ACT_CUST_STRT_DT,
+PD_TV_PROD_nm, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE, first_value (ACT_ACCT_INST_DT) over(PARTITION  BY act_acct_cd ORDER BY dt ASC) AS MinInst,
+first_value (ACT_ACCT_INST_DT) over(PARTITION  BY act_acct_cd ORDER BY ACT_ACCT_INST_DT DESC) AS MaxInst,CST_CHRN_DT AS ChurnDate, DATE_DIFF('DAY',cast(OLDEST_UNPAID_BILL_DT as date), cast(dt as date)) AS MORA, ACT_CONTACT_MAIL_1,act_contact_phone_1,round(FI_VO_MRC_AMT,0) AS mrcVO, round(FI_BB_MRC_AMT,0) AS mrcBB, round(FI_TV_MRC_AMT,0) AS mrcTV,round((FI_VO_MRC_AMT + FI_BB_MRC_AMT + FI_TV_MRC_AMT),0) as avgmrc, round(FI_BILL_AMT_M0,0) AS Bill, ACT_CUST_STRT_DT,
 
 CASE WHEN pd_vo_prod_nm IS NOT NULL and pd_vo_prod_nm <>'' THEN 1 ELSE 0 END AS RGU_VO,
 CASE WHEN pd_tv_prod_nm IS NOT NULL and pd_tv_prod_nm <>'' THEN 1 ELSE 0 END AS RGU_TV,
@@ -33,7 +34,7 @@ where act_acct_stat='ACTIVO'
 ,CustomerBase_BOM AS(
 SELECT DISTINCT DATE_TRUNC('Month', CAST(dt AS DATE)) AS Month, act_acct_cd AS AccountBOM,dt AS B_DATE,act_contact_phone_1 as B_Phone,
 pd_vo_prod_nm as B_VO_nm, pd_tv_prod_nm AS B_TV_nm, pd_bb_prod_nm as B_BB_nm, 
-RGU_VO as B_RGU_VO, RGU_TV as B_RGU_TV, RGU_BB AS B_RGU_BB, fi_outst_age as B_Overdue, C_CUST_AGE as B_Tenure, MinInst as B_MinInst, MIX AS B_MIX,
+RGU_VO as B_RGU_VO, RGU_TV as B_RGU_TV, RGU_BB AS B_RGU_BB, fi_outst_age as B_Overdue, C_CUST_AGE as B_Tenure, MinInst as B_MinInst,MaxInst as B_Maxinst, MIX AS B_MIX,
 (RGU_VO + RGU_TV + RGU_BB) AS B_NumRGUs, TechFlag as B_TechFlag, MORA AS B_MORA, 
 
 mrcVO as B_VO_MRC, mrcBB as B_BB_MRC, mrcTV as B_TV_MRC, avgmrc as B_AVG_MRC,
@@ -90,7 +91,7 @@ CASE WHEN RGU_VO= 1 THEN act_acct_cd ELSE NULL END As VO_RGU_BOM
 ,CustomerBase_EOM AS(
 SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS Month, dt as E_Date, act_acct_cd as AccountEOM, act_contact_phone_1 as E_Phone, pd_vo_prod_nm as E_VO_nm, 
     pd_tv_prod_nm as E_TV_nm, pd_bb_prod_nm as E_BB_nm, RGU_VO as E_RGU_VO, RGU_TV as E_RGU_TV, RGU_BB AS E_RGU_BB, fi_outst_age as E_Overdue, 
-    TechFlag as E_TechFlag, C_CUST_AGE as E_Tenure, MinInst as E_MinInst, MIX AS E_MIX,
+    TechFlag as E_TechFlag, C_CUST_AGE as E_Tenure, MinInst as E_MinInst,MaxInst as E_MaxInst, MIX AS E_MIX,
     (RGU_VO + RGU_TV + RGU_BB) AS E_NumRGUs, MORA AS E_MORA, mrcVO AS E_VO_MRC, mrcBB as E_BB_MRC, mrcTV as E_TV_MRC, avgmrc as E_AVG_MRC, BILL AS E_BILL_AMT,ACT_CUST_STRT_DT AS E_ACT_CUST_STRT_DT,
 --    CASE WHEN (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 0 AND RGU_BB = 1) THEN '1P'
 --    WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 1) OR (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 1) THEN '2P'
@@ -142,8 +143,8 @@ SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS 
    CASE WHEN accountBOM IS NOT NULL THEN 1 ELSE 0 END AS ActiveBOM,
    CASE WHEN accountEOM IS NOT NULL THEN 1 ELSE 0 END AS ActiveEOM,
    
-   B_Phone,B_Date, B_VO_nm, B_TV_nm, B_BB_nm, B_RGU_VO, B_RGU_TV, B_RGU_BB, B_NumRGUs, B_Overdue, B_Tenure, B_MinInst, B_BundleName,B_MIX, B_TechFlag, B_MORA, B_VO_MRC, B_BB_MRC, B_TV_MRC, B_AVG_MRC, B_BILL_AMT,B_ACT_CUST_STRT_DT,BB_RGU_BOM,TV_RGU_BOM,VO_RGU_BOM,
-   E_phone,E_Date, E_VO_nm, E_TV_nm, E_BB_nm, E_RGU_VO, E_RGU_TV, E_RGU_BB, E_NumRGUs, E_Overdue, E_Tenure, E_MinInst, E_BundleName,E_MIX, E_TechFlag, E_MORA, E_VO_MRC, E_BB_MRC, E_TV_MRC, E_AVG_MRC, E_BILL_AMT,E_ACT_CUST_STRT_DT,BB_RGU_EOM,TV_RGU_EOM,VO_RGU_EOM
+   B_Phone,B_Date, B_VO_nm, B_TV_nm, B_BB_nm, B_RGU_VO, B_RGU_TV, B_RGU_BB, B_NumRGUs, B_Overdue, B_Tenure, B_MinInst,B_Maxinst, B_BundleName,B_MIX, B_TechFlag, B_MORA, B_VO_MRC, B_BB_MRC, B_TV_MRC, B_AVG_MRC, B_BILL_AMT,B_ACT_CUST_STRT_DT,BB_RGU_BOM,TV_RGU_BOM,VO_RGU_BOM,
+   E_phone,E_Date, E_VO_nm, E_TV_nm, E_BB_nm, E_RGU_VO, E_RGU_TV, E_RGU_BB, E_NumRGUs, E_Overdue, E_Tenure, E_MinInst,E_Maxinst, E_BundleName,E_MIX, E_TechFlag, E_MORA, E_VO_MRC, E_BB_MRC, E_TV_MRC, E_AVG_MRC, E_BILL_AMT,E_ACT_CUST_STRT_DT,BB_RGU_EOM,TV_RGU_EOM,VO_RGU_EOM
   FROM CustomerBase_BOM b FULL OUTER JOIN CustomerBase_EOM e ON b.AccountBOM = e.AccountEOM AND b.Month = e.Month
 )
 
@@ -155,12 +156,14 @@ SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS 
 --------------------------------------Main Movements------------------------------------------
 ,MAINMOVEMENTBASE AS(
  SELECT f.*, CASE
- WHEN (E_NumRGUs - B_NumRGUs)=0 THEN 'Same RGUs'
- WHEN (E_NumRGUs - B_NumRGUs)>0 THEN 'Upsell'
- WHEN (E_NumRGUs - B_NumRGUs)<0 then 'Downsell'
- WHEN (B_NumRGUs IS NULL AND E_NumRGUs > 0 AND DATE_TRUNC ('MONTH', E_ACT_CUST_STRT_DT) <> Fixed_Month) THEN 'Come Back to Life'
- WHEN (B_NumRGUs IS NULL AND E_NumRGUs > 0 AND DATE_TRUNC ('MONTH', E_ACT_CUST_STRT_DT) = Fixed_Month) THEN 'New Customer'
- WHEN ActiveBOM = 1 AND ActiveEOM = 0 THEN 'Loss'
+ WHEN (E_NumRGUs - B_NumRGUs)=0 THEN '01. Same RGUs'
+ WHEN (E_NumRGUs - B_NumRGUs)>0 THEN '02. Upsell'
+ WHEN (E_NumRGUs - B_NumRGUs)<0 then '03. Downsell'
+ WHEN (B_NumRGUs IS NULL AND E_NumRGUs > 0 AND DATE_TRUNC ('MONTH', E_ACT_CUST_STRT_DT) <> Fixed_Month) 
+ AND date_diff('month',cast(Fixed_Month as timestamp),E_MaxInst)=0 
+ THEN '04. Come Back to Life'
+ WHEN (B_NumRGUs IS NULL AND E_NumRGUs > 0 AND DATE_TRUNC ('MONTH', E_ACT_CUST_STRT_DT) = Fixed_Month) THEN '05. New Customer'
+ WHEN ActiveBOM = 1 AND ActiveEOM = 0 THEN '06. Loss'
  END AS MainMovement,
  E_RGU_BB - B_RGU_BB as DIF_RGU_BB , E_RGU_TV - B_RGU_TV as DIF_RGU_TV , E_RGU_VO - B_RGU_VO as DIF_RGU_VO , E_NumRGUs - B_NumRGUs as DIF_TOTAL_RGU
  FROM FixedCustomerBase f
@@ -269,8 +272,7 @@ CONCAT(B_VO_nm,B_TV_nm,B_BB_nm) AS B_PLAN,CONCAT(E_VO_nm,E_TV_nm,E_BB_nm) AS E_P
 FROM FullFixedBase_Rejoiners
 )
 
-Select distinct Fixed_Month, FixedChurnTypeFlag,count(*) From FinalTable --limit 10
---where activeeom=1
+Select Fixed_Month,MainMovement,count(distinct Fixed_Account) From FinalTable
+where activeeom=1
 group by 1,2
 order by 1,2
-
