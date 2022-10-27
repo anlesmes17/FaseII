@@ -35,6 +35,11 @@ E_Mobile_Account IS NULL) THEN B_Mobile_Account
 WHEN (B_Mobile_Account IS NULL AND E_Mobile_Account IS NOT NULL) THEN E_Mobile_Account
 END AS Mobile_Account,
 
+CASE WHEN (B_Mobile_Account IS NOT NULL AND E_Mobile_Account IS NOT NULL) OR (B_Mobile_Account IS NOT NULL AND 
+E_Mobile_Account IS NULL) THEN B_FixedContract
+WHEN (B_Mobile_Account IS NULL AND E_Mobile_Account IS NOT NULL) THEN E_FixedContract
+END AS FMC_Account,
+
 CASE WHEN B_Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS Mobile_ActiveBOM,
 CASE WHEN E_Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS Mobile_ActiveEOM,
 
@@ -50,7 +55,6 @@ SELECT DISTINCT *, date_diff(cast(Mobile_Month as date),cast(B_StartDate as date
 CASE WHEN date_diff(cast(Mobile_Month as date),cast(B_StartDate as date),Month) <6 THEN "Early Tenure"
 WHEN date_diff(cast(Mobile_Month as date),cast(B_StartDate as date),Month) >=6 THEN "Late Tenure"
 ELSE NULL END AS B_MobileTenureSegment,
-
 date_diff(cast(Mobile_Month as date),cast(E_Mobile_MaxStart as date),Month) AS Mobile_E_TenureDays,
 CASE WHEN date_diff(cast(Mobile_Month as date),cast(E_Mobile_MaxStart as date),Month) <6 THEN "Early Tenure"
 WHEN date_diff(cast(Mobile_Month as date),cast(E_Mobile_MaxStart as date),Month) >=6 THEN "Late Tenure"
@@ -129,5 +133,4 @@ THEN f.Mobile_Account ELSE NULL END AS Mobile_RejoinerMonth
 FROM CustomerBaseWithChurn f LEFT JOIN MobileRejoinerPopulation r ON f.Mobile_Account=r.Mobile_Account AND f.Mobile_Month=Month 
 )
 
-Select * From FullMobileBase_Rejoiners
-
+Select * From FullMobileBase_Rejoiners 
