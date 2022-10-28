@@ -278,4 +278,4 @@ CONCAT(B_VO_nm,B_TV_nm,B_BB_nm) AS B_PLAN,CONCAT(E_VO_nm,E_TV_nm,E_BB_nm) AS E_P
 FROM FullFixedBase_Rejoiners
 )
 
-Select distinct * From FinalTable
+Select * From FinalTable 
