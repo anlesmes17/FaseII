@@ -137,4 +137,18 @@ END AS E_FMCType
 )
 
 ,CustomerBase_FMCSegments_ChurnFlag AS(
-SELECT c.*
+SELECT c.*,
+CASE WHEN (B_FMC_Status = 'Fixed Only') OR ((B_FMC_Status = 'Soft FMC' OR B_FMC_Status='Near FMC') AND ACTIVEBOM = 1 AND Mobile_ActiveBOM = 1) THEN B_TechFlag
+WHEN B_FMC_Status = 'Mobile Only' OR ((B_FMC_Status = 'Soft FMC' OR B_FMC_Status='Near FMC' OR B_FMC_Status='Undefined FMC') AND (ACTIVEBOM = 0 or ACTIVEBOM IS NULL)) THEN 'Wireless'
+END AS B_FinalTechFlag,
+CASE
+WHEN (E_FMC_Status = 'Fixed Only' AND FixedChurnTypeFlag is null) OR ((E_FMC_Status = 'Soft FMC' OR E_FMC_Status='Near FMC') AND ACTIVEEOM = 1 AND Mobile_ActiveEOM = 1 AND FixedChurnTypeFlag is null) THEN E_TechFlag
+WHEN E_FMC_Status = 'Mobile Only' OR ((E_FMC_Status = 'Soft FMC' OR E_FMC_Status='Near FMC') AND (ACTIVEEOM = 0 OR ActiveEOM IS NULL)) THEN 'Wireless'
+END AS E_FinalTechFlag,
+CASE WHEN (B_FixedTenureSegment =  'Late Tenure' and B_MobileTenureSegment =  'Late Tenure') OR (B_FixedTenureSegment =  'Late Tenure' and B_MobileTenureSegment is null) or (B_FixedTenureSegment IS NULL and B_MobileTenureSegment =  'Late Tenure') THEN 'Late Tenure'
+ WHEN (B_FixedTenureSegment =  'Early Tenure' OR B_MobileTenureSegment =  'Early Tenure') THEN 'Early Tenure'
+ END AS B_TenureFinalFlag,
+  CASE WHEN (E_FixedTenureSegment =  Late Tenure" and E_MobileTenureSegment =  "Late Tenure") OR (E_FixedTenureSegment =  "Late Tenure" and E_MobileTenureSegment is null) or (E_FixedTenureSegment IS NULL and E_MobileTenureSegment =  "Late Tenure") THEN "Late Tenure"
+ WHEN (E_FixedTenureSegment =  "Early Tenure" OR E_MobileTenureSegment =  "Early Tenure") THEN "Early Tenure"
+ END AS E_TenureFinalFlag,
+ 
