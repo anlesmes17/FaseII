@@ -6,10 +6,12 @@ MobileUsefulFields as(
 Select distinct date_trunc('Month',cast(fecha_parque as date)) as Month, replace(ID_ABONADO,'.','') as ID_ABONADO,cast(Contrato as varchar) as FixedContract,Num_Telefono,Direccion_Correo,des_segmento_cliente,
 case 
 when (renta like '%#%' or renta like '%/%') then null 
-else cast(replace(renta,',','.') as double) end as renta,
-fch_activacion as StartDate
+else cast(replace(renta,',','.') as double) end as renta
 
---CASE WHEN fch_activacion='#N/D' THEN NULL else date_parse(substring(fch_activacion,1,10),'%d/%m/%Y') END as StartDate 
+,CASE WHEN fch_activacion='#N/D' OR fch_activacion='SAMSUNG GALAXY A03 CORE 32GB NEGRO' OR fch_activacion='IPHONE 12 PRO MAX GRAFITO 256GB' 
+OR fch_activacion='ARTICULO SIN EQUIPO' 
+
+THEN NULL else date_parse(substring(fch_activacion,1,10),'%m/%d/%Y') END as StartDate 
 
 From "cr_ext_parque_temp"  --limit 10
 WHERE DES_SEGMENTO_CLIENTE <>'Empresas - Empresas' AND DES_SEGMENTO_CLIENTE <>'Empresas - Pymes'
@@ -44,25 +46,25 @@ END AS Mobile_Account,
 CASE WHEN B_Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS Mobile_ActiveBOM,
 CASE WHEN E_Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS Mobile_ActiveEOM,
 
-B_FixedContract,B_NumTelefono,B_Correo,B_Mobile_MRC,B_StartDate
+B_FixedContract,B_NumTelefono,B_Correo,B_Mobile_MRC,B_StartDate,
 E_FixedContract,E_NumTelefono,E_Correo,E_Mobile_MRC,E_StartDate
 FROM CustomerBase_BOM b FULL OUTER JOIN CustomerBase_EOM e ON B_Mobile_Account=E_Mobile_Account AND 
 B_Month=E_Month
 )
 
-/*
+
 ,FlagTenureCutomerBase as(
-SELECT DISTINCT *, date_diff(cast(Mobile_Month as date),cast(B_StartDate as date),Month) AS Mobile_B_TenureDays,
-CASE WHEN date_diff(cast(Mobile_Month as date),cast(B_StartDate as date),Month) <6 THEN "Early Tenure"
-WHEN date_diff(cast(Mobile_Month as date),cast(B_StartDate as date),Month) >=6 THEN "Late Tenure"
+SELECT DISTINCT *, date_diff('Month',cast(B_StartDate as date),cast(Mobile_Month as date)) AS Mobile_B_TenureDays,
+CASE WHEN date_diff('Month',cast(B_StartDate as date),cast(Mobile_Month as date)) <6 THEN 'Early Tenure'
+WHEN date_diff('Month',cast(B_StartDate as date),cast(Mobile_Month as date)) >=6 THEN 'Late Tenure'
 ELSE NULL END AS B_MobileTenureSegment,
-date_diff(cast(Mobile_Month as date),cast(E_Mobile_MaxStart as date),Month) AS Mobile_E_TenureDays,
-CASE WHEN date_diff(cast(Mobile_Month as date),cast(E_Mobile_MaxStart as date),Month) <6 THEN "Early Tenure"
-WHEN date_diff(cast(Mobile_Month as date),cast(E_Mobile_MaxStart as date),Month) >=6 THEN "Late Tenure"
+date_diff('Month',cast(E_StartDate as date),cast(Mobile_Month as date)) AS Mobile_E_TenureDays,
+CASE WHEN date_diff('Month',cast(E_StartDate as date),cast(Mobile_Month as date)) <6 THEN 'Early Tenure'
+WHEN date_diff('Month',cast(E_StartDate as date),cast(Mobile_Month as date)) >=6 THEN 'Late Tenure'
 ELSE NULL END AS E_MobileTenureSegment
 From MobileCustomerBase
 )
-*/
+
 
 --------------------------------------- Main Movements ----------------------------------------------
 
@@ -75,13 +77,6 @@ WHEN E_FixedContract IS NOT NULL THEN cast(E_FixedContract as varchar)
 WHEN Mobile_Account IS NOT NULL THEN cast(Mobile_Account as varchar)
 END AS FMC_Account,
 
-
-
-
-
-
-
-
 CASE
 WHEN Mobile_ActiveBOM =1 AND Mobile_ActiveEOM =1 AND(B_Mobile_MRC=E_Mobile_MRC) THEN '01.Maintain'
 WHEN Mobile_ActiveBOM =1 AND Mobile_ActiveEOM =1 AND(B_Mobile_MRC>E_Mobile_MRC) THEN '02.Downspin'
@@ -91,7 +86,7 @@ WHEN Mobile_ActiveBOM =1 AND Mobile_ActiveEOM =0 THEN '04.Loss'
 --WHEN (Mobile_ActiveBOM=0 OR Mobile_ActiveBOM IS NULL)  AND Mobile_ActiveEOM=1 AND E_StartDate =Mobile_Month THEN '06.New Customer'
 WHEN (B_Mobile_MRC IS NULL OR E_Mobile_MRC IS NULL) THEN '07.MRC Gap'
 ELSE NULL END AS MobileMovementFlag
-From MobileCustomerBase
+From FlagTenureCutomerBase
 )
 
 --------------------------------------- Churners ---------------------------------------------------
