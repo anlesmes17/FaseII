@@ -179,6 +179,19 @@ SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS 
 
 ,SPINMOVEMENTBASE AS (
     SELECT b.*,
+    CASE
+    WHEN B_Tenure <=6 THEN 'Early Tenure'
+    WHEN (B_Tenure >6 and b_tenure <= 12)  THEN 'Mid Tenure'
+    when b_tenure > 12 then 'Late Tenure'
+    ELSE NULL END AS B_FixedTenureSegment,
+    
+    CASE
+    WHEN E_Tenure <=6 THEN 'Early Tenure'
+    WHEN (E_Tenure >6 and e_tenure <= 12)  THEN 'Mid Tenure'
+    WHEN e_tenure > 12 then 'Late Tenure'
+    ELSE NULL END AS E_FixedTenureSegment,
+    
+    
     CASE 
     WHEN MainMovement='Same RGUs' AND (E_BILL_AMT - B_BILL_AMT) > 0 THEN '1. Up-spin' 
     WHEN MainMovement='Same RGUs' AND (E_BILL_AMT - B_BILL_AMT) < 0 THEN '2. Down-spin' 
