@@ -22,6 +22,8 @@ AND PD_TV_PROD_nm IS NOT NULL and pd_tv_prod_nm <>'' THEN '2P'
 
 WHEN PD_VO_PROD_nm IS NOT NULL and pd_vo_prod_nm <>'' AND PD_BB_PROD_nm IS NOT NULL and pd_bb_prod_nm <>''
 AND (PD_TV_PROD_nm IS NULL or pd_tv_prod_nm ='') THEN '2P'
+WHEN PD_VO_PROD_nm IS NULL AND PD_BB_PROD_nm IS NULL AND PD_TV_PROD_nm IS NULL THEN '0P'
+
 ELSE '1P' END AS MIX, pd_bb_tech,
 
 CASE 
@@ -29,7 +31,10 @@ WHEN pd_bb_prod_nm LIKE '%FTTH%' OR pd_tv_prod_nm ='NextGen TV' THEN 'FTTH'
 ELSE 'HFC' END AS TechFlag
 
 FROM "db-analytics-dev"."dna_fixed_cr"
-where act_acct_stat='ACTIVO'
+--where act_acct_stat='ACTIVO'
+--where 
+--act_cust_typ='RESIDENCIAL' and 
+--act_acct_stat='ACTIVO'
 )
 
 
@@ -68,8 +73,8 @@ CASE WHEN RGU_VO= 1 THEN act_acct_cd ELSE NULL END As VO_RGU_BOM
     
     
     FROM UsefulFields c 
-    WHERE date(dt) = DATE_TRUNC('Month', date(dt))
-    
+    --WHERE date(dt) = DATE_TRUNC('Month', date(dt))
+    WHERE dt='2022-10-07'
     --LEFT JOIN "db-analytics-dev"."dna_fixed_cr"  on c.act_acct_cd on --Tipo tecnologia es bb,tv,vo y/o _media o _tech  ON PD_BB_PROD_nm=ActivoInternet
     --WHERE date(dt) = DATE_TRUNC('Month', date(dt))
 )
@@ -201,7 +206,7 @@ SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS 
 
 
 
---------------------------------------------------------------------------- Fixed Churn Flags -------------------------------------------------------------------------------------------
+--------------------------------------- Fixed Churn Flags --------------------------------------------------------
 ------------------------------------------Voluntary & Involuntary-------------------------------------------------------------
 ,MAX_SO_CHURN AS(
  SELECT DISTINCT account_name AS CONTRATOSO, DATE_TRUNC('Month',MAX(order_start_date)) as DeinstallationMonth, MAX(order_start_date) AS FECHA_CHURN
@@ -229,6 +234,7 @@ SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS 
 
 ,MaximaFecha as(
   select distinct  act_acct_cd, max(dt) as MaxFecha FROM "db-analytics-dev"."dna_fixed_cr"
+  where act_acct_stat='ACTIVO'
   group by 1
 )
 
@@ -237,6 +243,7 @@ select Distinct f.dt,f.act_acct_cd,Submotivo,DeinstallationMonth,DeinstallationD
 FROM "db-analytics-dev"."dna_fixed_cr" f
 left join churnersso c on contratoso=f.act_acct_cd and date_trunc('Month',cast(dt as date))=DeinstallationMonth
 left join MaximaFecha m on f.act_acct_cd=m.act_acct_cd
+where f.act_acct_stat='ACTIVO'
 )
 
 ,MaxFechaJoin as(
@@ -292,3 +299,10 @@ FROM FullFixedBase_Rejoiners
 )
 
 Select * From FinalTable 
+--where Fixed_Month=cast('2022-10-01' as date) and activeeom=1 --and e_numrgus=0
+
+
+--where Fixed_Month=cast('2022-10-01' as date) and activeeom=1 and e_numrgus=0
+--group by 1
+--order by 1
+
