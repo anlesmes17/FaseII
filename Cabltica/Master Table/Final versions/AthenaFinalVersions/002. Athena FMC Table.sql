@@ -97,7 +97,7 @@ CASE
 WHEN (Fixed_Account is not null and Mobile_Account is not null and ActiveEOM = 1 and Mobile_ActiveEOM = 1 AND E_FixedContract IS NOT NULL ) THEN 'Soft FMC'
 WHEN (E_EMAIL IS NOT NULL AND E_FixedContract IS NULL AND ActiveEOM=1) OR (ActiveEOM = 1 and Mobile_ActiveEOM = 1) THEN 'Near FMC'
 WHEN (Fixed_Account IS NOT NULL AND ActiveEOM=1 AND (Mobile_ActiveEOM = 0 OR Mobile_ActiveEOM IS NULL))  THEN 'Fixed Only'
-WHEN (Mobile_Account IS NOT NULL AND Mobile_ActiveEOM=1 AND (ActiveEOM = 0 OR ActiveEOM IS NULL )) AND MobileChurnFlag IS NULL THEN 'Mobile Only'
+WHEN (Mobile_Account IS NOT NULL AND Mobile_ActiveEOM=1 AND (ActiveEOM = 0 OR ActiveEOM IS NULL )) AND MobileChurnFlag<>'1. Mobile Churner' THEN 'Mobile Only'
 END AS E_FMC_Status,f.*,m.*
 FROM Fixed_Base f FULL OUTER JOIN NEARFMC_MOBILE_EOM  m 
 ON Fixed_Account=cast(FMC_Account as varchar) AND Fixed_Month=Mobile_Month
@@ -126,12 +126,12 @@ END AS B_FMCType,
 CASE 
 --WHEN Final_EOM_ActiveFlag = 0 AND ((ActiveEOM = 0 AND FixedChurnTypeFlag IS NULL) OR (Mobile_ActiveEOM = 0 AND MobileChurnFlag is null)) THEN "Customer Gap"
 WHEN E_FMC_Status = 'Fixed Only' AND FixedChurnTypeFlag IS NOT NULL THEN NULL
-WHEN E_FMC_Status = 'Mobile Only' AND MobileChurnFlag IS NOT NULL THEN NULL
+WHEN E_FMC_Status = 'Mobile Only' AND MobileChurnFlag ='1. Mobile Churner' THEN NULL
 WHEN (E_FMC_Status = 'Fixed Only')  AND (Mobile_ActiveEOM = 0 OR MOBILE_ACTIVEEOM IS NULL OR(Mobile_ActiveEOM = 1 AND MobileChurnFlag IS NOT NULL))  AND E_MIX = '1P' THEN 'Fixed 1P'
 WHEN (E_FMC_Status = 'Fixed Only' )  AND (Mobile_ActiveEOM = 0 OR MOBILE_ACTIVEEOM IS NULL OR(Mobile_ActiveEOM = 1 AND MobileChurnFlag IS NOT NULL)) AND E_MIX = '2P' THEN 'Fixed 2P'
 WHEN (E_FMC_Status = 'Fixed Only' )  AND (Mobile_ActiveEOM = 0 OR MOBILE_ACTIVEEOM IS NULL OR(Mobile_ActiveEOM = 1 AND MobileChurnFlag IS NOT NULL)) AND E_MIX = '3P' THEN 'Fixed 3P'
-WHEN (E_FMC_Status = 'Soft FMC' OR E_FMC_Status = 'Near FMC') AND (ActiveEOM = 0 OR ActiveEOM is null OR (ActiveEOM = 1 AND FixedChurnTypeFlag IS NOT NULL)) OR (E_FMC_Status = 'Mobile Only' OR((ActiveEOM is null or activeeom=0) and(Mobile_ActiveEOM=1))) THEN 'Mobile Only'
-WHEN (E_FMC_Status='Soft FMC' OR E_FMC_Status='Near FMC') AND (FixedChurnTypeFlag IS NULL AND MobileChurnFlag IS NULL AND ActiveEOM=1 AND Mobile_ActiveEOM=1 ) THEN E_FMC_Status
+WHEN (E_FMC_Status = 'Soft FMC' OR E_FMC_Status = 'Near FMC' OR E_FMC_Status='Mobile Only') AND (ActiveEOM = 0 OR ActiveEOM is null OR (ActiveEOM = 1 AND FixedChurnTypeFlag IS NOT NULL)) OR (E_FMC_Status = 'Mobile Only' OR((ActiveEOM is null or activeeom=0) and(Mobile_ActiveEOM=1))) THEN 'Mobile Only'
+WHEN (E_FMC_Status='Soft FMC' OR E_FMC_Status='Near FMC') AND (FixedChurnTypeFlag IS NULL AND MobileChurnFlag<>'1. Mobile Churner' AND ActiveEOM=1 AND Mobile_ActiveEOM=1 ) THEN E_FMC_Status
 END AS E_FMCType
 ,case when Mobile_ActiveBOM=1 then 1 else 0 end as B_MobileRGUs
 ,case when Mobile_ActiveEOM=1 then 1 else 0 end as E_MobileRGUs
@@ -231,7 +231,6 @@ WHEN (Final_BOM_ActiveFlag = 0 and Final_EOM_ActiveFlag = 1)  AND (ActiveBOM=0 A
 /*
 WHEN Rejoiner_FinalFlag IS NOT NULL THEN Rejoiner_FinalFlag
 WHEN (Final_BOM_ActiveFlag = 0 and Final_EOM_ActiveFlag = 1) AND ((MainMovement = "New Customer" AND MobileMovementFlag = "3.Gross Add/ rejoiner") OR (MainMovement = "New Customer" AND MobileMovementFlag IS NULL) OR (MainMovement IS NULL AND MobileMovementFlag = "3.Gross Add/ rejoiner")) THEN "Fixed Gross Add or Mobile Gross Add/ Rejoiner"
-
 WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag =1) AND (ActiveBOM=0 AND ActiveEOM=1) AND (Mobile_ActiveBOM=1 AND Mobile_ActiveEOM=0) THEN "Fixed Gross Add or Mobile Gross Add/ Rejoiner"
 WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (FinalChurnFlag="Fixed Churner") AND (Mobile_ActiveBOM=0 AND Mobile_ActiveEOM=1) THEN "Fixed to Mobile Customer Gap"
 WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag =1) AND (ActiveBOM=1 AND ActiveEOM=0) AND FinalChurnFlag="Non Churner" THEN "Churn Gap"
@@ -239,7 +238,6 @@ WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (Mobile_ActiveB
 WHEN (Final_BOM_ActiveFlag = 1 and Final_EOM_ActiveFlag = 1) AND (ActiveBOM=1 AND ActiveEOM=1) AND (Mobile_ActiveBOM=1 AND Mobile_ActiveEOM=0) THEN "Mobile Churner"
 WHEN (Final_BOM_ActiveFlag = 0 and Final_EOM_ActiveFlag = 1) AND E_FMC_Segment="P1_Fixed" AND Rejoiner_FinalFlag is null then "Fixed Gross Add or Mobile Gross Add/ Rejoiner"
 --WHEN FinalChurnFlag="Customer Gap" THEN "Customer Gap"
-
 */
 END AS Waterfall_Flag,
 CONCAT(coalesce(B_Plan,''),cast(Mobile_ActiveBOM as varchar),'') AS B_Plan_Full, 
@@ -260,5 +258,4 @@ else null end as Downsell_Split
 from FullCustomersBase_Flags_Waterfall
 )
 
-select distinct *
-from Last_Flags
+select * from Last_Flags
