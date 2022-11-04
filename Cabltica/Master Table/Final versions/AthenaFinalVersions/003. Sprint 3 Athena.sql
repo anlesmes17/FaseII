@@ -12,12 +12,13 @@ date_trunc('Month',act_cust_strt_dt) as Sales_Month,
 date_trunc('Month',date(act_acct_inst_dt)) as Install_Month,
 act_acct_cd
 From "db-analytics-dev"."dna_fixed_cr"
+where act_acct_cd='1366243'
 )
 
 ,installs_fmc_table as(
 select f.*,Sales_Month,Install_Month
 From FmcTable f left join total_installs b
-ON b.act_acct_cd=Fixed_Account --and cast(Month as varchar)=cast(Install_Month as varchar)
+ON b.act_acct_cd=Fixed_Account and cast(Month as varchar)=cast(Install_Month as varchar)
 
 )
 
@@ -235,6 +236,29 @@ FROM AbsMRC
 
 --------------------------------------- Sales Channel ----------------------------------
 
+,SalesChannel as (
+SELECT distinct date_trunc('Month',cast(dt as date)) as ChannelMonth,account_name,channel_desc
+FROM "db-stage-dev"."so_cr"
+WHERE
+order_type = 'INSTALACION' 
+AND order_status = 'FINALIZADA'
+)
+
+,SalesChannelsInstallations as (
+select distinct act_acct_cd, account_name,Install_Month,channel_desc
+from total_installs left join SalesChannel
+on account_name=act_acct_cd and Install_Month=date_trunc('Month',ChannelMonth)
+)
+
+,ChannelsMasterTable AS (
+    select distinct f.*, channel_desc from MountingBills_MasterTable f left join SalesChannelsInstallations s
+    on account_name=f.Fixed_Account AND s.Install_Month=Month
+)
+
+select * from ChannelsMasterTable
+where Fixed_Account='1366243'
+
+
 
 --------------------------------------- Grouped table -----------------------------------
 
@@ -246,11 +270,10 @@ count (distinct increase_flag) as MRC_Change, count (distinct no_plan_change_fla
 count(distinct EarlyIssue_Flag) as EarlyIssueCall, count(distinct TechCall_Flag) as TechCalls,
 count(distinct BillClaim_Flag) as BillClaim,
 count(distinct MountingBill_Flag) as MountingBills
---,categoria_canal
-,sales_Month,Install_Month
-from MountingBills_MasterTable
+,channel_desc
+--,sales_Month,Install_Month
+from ChannelsMasterTable
 Where finalchurnflag<>'Fixed Churner' AND finalchurnflag<>'Customer Gap' AND finalchurnflag<>'Full Churner' AND finalchurnflag<>'Churn Exception'
-and sales_month>cast('2022-07-01' as date) and Install_month>cast('2022-07-01' as date)
-Group by 1,2,3,4,16,17--,18
+--and sales_month>cast('2022-07-01' as date) and Install_month>cast('2022-07-01' as date)
+Group by 1,2,3,4,16--,16,17--,18
 Order by 1 desc, 2,3,4
-
