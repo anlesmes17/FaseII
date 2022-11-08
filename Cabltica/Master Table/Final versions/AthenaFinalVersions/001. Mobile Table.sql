@@ -19,13 +19,13 @@ WHERE DES_SEGMENTO_CLIENTE <>'Empresas - Empresas' AND DES_SEGMENTO_CLIENTE <>'E
 )
 
 ,CustomerBase_BOM as(
-SELECT DISTINCT date_add('Month',1,Month) as B_Month,ID_ABONADO as B_Mobile_Account,FixedContract as B_FixedContract,Renta as B_Mobile_MRC,Num_Telefono as B_NumTelefono,Direccion_correo B_Correo, StartDate as B_StartDate
+SELECT DISTINCT date_trunc('Month',Month) as B_Month,ID_ABONADO as B_Mobile_Account,FixedContract as B_FixedContract,Renta as B_Mobile_MRC,Num_Telefono as B_NumTelefono,Direccion_correo B_Correo, StartDate as B_StartDate
 From MobileUsefulFields
 where fixedcontract is not null
 )
 
 ,CustomerBase_EOM as(
-SELECT DISTINCT Month as E_Month,ID_ABONADO as E_Mobile_Account,cast(FixedContract as varchar) as E_FixedContract,Renta as E_Mobile_MRC,Num_Telefono as E_NumTelefono,Direccion_correo as E_Correo, StartDate as E_StartDate
+SELECT DISTINCT date_trunc('Month',date_add('Month',-1,Month)) as E_Month,ID_ABONADO as E_Mobile_Account,cast(FixedContract as varchar) as E_FixedContract,Renta as E_Mobile_MRC,Num_Telefono as E_NumTelefono,Direccion_correo as E_Correo, StartDate as E_StartDate
 From MobileUsefulFields
 )
 
