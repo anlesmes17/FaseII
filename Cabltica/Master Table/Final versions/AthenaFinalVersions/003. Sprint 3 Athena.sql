@@ -255,8 +255,6 @@ on account_name=act_acct_cd and Install_Month=date_trunc('Month',ChannelMonth)
     on account_name=f.Fixed_Account AND s.Install_Month=Month
 )
 
-select * from ChannelsMasterTable
-where Fixed_Account='1366243'
 
 
 
