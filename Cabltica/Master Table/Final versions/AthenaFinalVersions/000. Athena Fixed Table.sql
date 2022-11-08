@@ -31,10 +31,7 @@ WHEN pd_bb_prod_nm LIKE '%FTTH%' OR pd_tv_prod_nm ='NextGen TV' THEN 'FTTH'
 ELSE 'HFC' END AS TechFlag
 
 FROM "db-analytics-dev"."dna_fixed_cr"
---where act_acct_stat='ACTIVO'
---where 
---act_cust_typ='RESIDENCIAL' and 
---act_acct_stat='ACTIVO'
+Where (act_cust_typ='RESIDENCIAL' or act_cust_typ='PROGRAMA HOGARES CONECTADOS') and act_acct_stat='ACTIVO'
 )
 
 
@@ -74,9 +71,8 @@ CASE WHEN RGU_VO= 1 THEN act_acct_cd ELSE NULL END As VO_RGU_BOM
     
     FROM UsefulFields c 
     --WHERE date(dt) = DATE_TRUNC('Month', date(dt))
-    WHERE dt='2022-10-07'
     --LEFT JOIN "db-analytics-dev"."dna_fixed_cr"  on c.act_acct_cd on --Tipo tecnologia es bb,tv,vo y/o _media o _tech  ON PD_BB_PROD_nm=ActivoInternet
-    --WHERE date(dt) = DATE_TRUNC('Month', date(dt))
+    WHERE date(dt) = DATE_TRUNC('Month', date(dt))
 )
 
 
@@ -305,4 +301,3 @@ Select * From FinalTable
 --where Fixed_Month=cast('2022-10-01' as date) and activeeom=1 and e_numrgus=0
 --group by 1
 --order by 1
-
