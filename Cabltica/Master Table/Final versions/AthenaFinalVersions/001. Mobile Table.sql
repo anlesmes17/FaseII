@@ -145,4 +145,4 @@ THEN f.Mobile_Account ELSE NULL END AS Mobile_RejoinerMonth
 FROM CustomerBaseWithChurn f LEFT JOIN MobileRejoinerPopulation r ON f.Mobile_Account=r.Mobile_Account AND f.Mobile_Month=Month 
 )
 
-Select * From FullMobileBase_Rejoiners --limit 10
+Select * From FullMobileBase_Rejoiners 
