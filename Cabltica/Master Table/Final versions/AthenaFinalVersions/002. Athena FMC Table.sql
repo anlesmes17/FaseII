@@ -240,8 +240,8 @@ WHEN (Final_BOM_ActiveFlag = 0 and Final_EOM_ActiveFlag = 1) AND E_FMC_Segment="
 --WHEN FinalChurnFlag="Customer Gap" THEN "Customer Gap"
 */
 END AS Waterfall_Flag,
-CONCAT(coalesce(B_Plan,''),cast(Mobile_ActiveBOM as varchar),'') AS B_Plan_Full, 
-CONCAT(coalesce(E_Plan,''),cast(Mobile_ActiveEOM as varchar),'') AS E_Plan_Full 
+CONCAT(coalesce(B_Plan,''),cast(coalesce(cast(Mobile_ActiveBOM as varchar),'-') as varchar),'') AS B_Plan_Full, 
+CONCAT(coalesce(E_Plan,''),cast(coalesce(cast(Mobile_ActiveEOM as varchar),'-') as varchar),'') AS E_Plan_Full 
 
 
 FROM RejoinerColumn f
