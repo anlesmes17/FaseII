@@ -290,7 +290,8 @@ SELECT *,CASE
 WHEN FixedChurnTypeFlag is not null THEN b_NumRGUs
 WHEN MainMovement='Downsell' THEN (B_NumRGUs - E_NumRGUs)
 ELSE NULL END AS RGU_Churn,
-CONCAT(B_VO_nm,B_TV_nm,B_BB_nm) AS B_PLAN,CONCAT(E_VO_nm,E_TV_nm,E_BB_nm) AS E_PLAN
+CONCAT(coalesce(B_VO_nm,'-'),coalesce(B_TV_nm,'-'),coalesce(B_BB_nm,'-')) AS B_PLAN
+,CONCAT(coalesce(E_VO_nm,'-'),coalesce(E_TV_nm,'-'),coalesce(E_BB_nm,'-')) AS E_PLAN
 FROM FullFixedBase_Rejoiners
 )
 
