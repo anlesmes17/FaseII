@@ -2,8 +2,11 @@ WITH
 
 FmcTable AS (
 SELECT DISTINCT *, 
-CASE WHEN B_Plan_Full=E_Plan_Full THEN Fixed_Account ELSE NULL END AS no_plan_change_flag
+CASE WHEN B_Plan_Full=E_Plan_Full
+--WHEN B_Plan_Full IS NULL AND E_Plan_Full IS NULL AND 
+THEN Fixed_Account ELSE NULL END AS no_plan_change_flag
 FROM "lla_cco_int_san"."cr_fmc_table"
+--where month=date('2022-09-01') and final_eom_activeflag=1
 ) 
 
 ,total_installs as(
@@ -12,7 +15,7 @@ date_trunc('Month',act_cust_strt_dt) as Sales_Month,
 date_trunc('Month',date(act_acct_inst_dt)) as Install_Month,
 act_acct_cd
 From "db-analytics-dev"."dna_fixed_cr"
-where act_acct_cd='1366243'
+--where act_acct_cd='1366243'
 )
 
 ,installs_fmc_table as(
@@ -40,13 +43,14 @@ ON act_acct_cd=Fixed_Account and Month=cast(date_trunc('Month',date_add('Month',
     Select distinct Date_Trunc('Month',cast(dt as date)),act_acct_cd,OLDEST_UNPAID_BILL_DT,FI_OUTST_AGE,date_trunc('Month',min(act_cust_strt_dt)) as Sales_Month,dt
     From "db-analytics-dev"."dna_fixed_cr"
     group by 1,2,3,4,6
+    --order by 1 desc
 )
 
 ,JoinFirstBill as(
     Select Sales_Month,a.act_acct_cd,FI_OUTST_AGE,dt
     FROM Prueba a inner join FirstBill b
-    on ContratoFirstBill=act_acct_cd and FirstBillEmitted=OLDEST_UNPAID_BILL_DT
-    order by 2,3,4
+    on ContratoFirstBill=act_acct_cd and date_trunc('Month',FirstBillEmitted)=date_trunc('Month',OLDEST_UNPAID_BILL_DT)
+    --order by 2,3,4
 )
 
 ,MaxOutstAge as(
@@ -55,7 +59,7 @@ ON act_acct_cd=Fixed_Account and Month=cast(date_trunc('Month',date_add('Month',
     Case when Max(FI_OUTST_AGE)>=90 Then act_acct_cd ELSE NULL END AS NeverPaid_Flag
     From JoinFirstBill
     group by 1,2
-    order by 2,3
+    --order by 2,3
 )
 
 ,SoftDx_MasterTable as(
@@ -70,84 +74,79 @@ ON act_acct_cd=Fixed_Account and Month=cast(date_trunc('Month',date_add('Month',
 
 ----------------------------------------- Early Interactions ----------------------------------------
 
-,Initial_Table_Interactions as(
-  select date_trunc('Month',interaction_start_time) as Interaction_Month,account_id as Contrato,interaction_id,min(interaction_start_time) as interaction_start_time
-  FROM "interactions_cabletica"
-  where interaction_purpose_descrip IS NOT NULL AND account_id IS NOT NULL
-  and interaction_status <> 'ANULADA' and interaction_purpose_descrip <> 'GESTION COBRO' and interaction_purpose_descrip <> 'LLAMADA  CONSULTA DESINSTALACION' --AND subarea<>'VENTA VIRTUAL' AND subarea<>"FECHA Y HORA DE VISITA"
-  --and subarea<>"FECHA Y HORA DE VISITA WEB"----VALIDAR PURPOSE DESCRIPTION
-  group by 1,2,3
+,interactions as(
+select date_trunc('Month',interaction_start_time) as interaction_month,interaction_start_time,account_id,interaction_end_time FROM "interactions_cabletica" 
+WHERE (account_type='RESIDENCIAL' or account_type='PROGRAMA HOGARES CONECTADOS') and date_trunc('Month',interaction_start_time)>=date('2022-01-01') and interaction_status <> 'ANULADA'
+and interaction_purpose_descrip NOT IN ('VENTANILLA','DESINSTALACION')
 )
 
-,Installation_Interactions AS (
-    SELECT date_trunc('Month',min(act_cust_strt_dt)) as Sales_Month, act_acct_cd,min(act_cust_strt_dt) as act_cust_strt_dt,
-    min(act_acct_inst_dt) as  act_acct_inst_dt,date_trunc('Month',min(act_acct_inst_dt)) as Inst_Month
-    FROM "db-analytics-dev"."dna_fixed_cr"
-    GROUP BY 2
+,CustStarts as(
+select distinct date_trunc('Month',act_cust_strt_dt) as start_month,act_cust_strt_dt,act_acct_cd,
+first_value(date(dt)) over(partition by act_acct_cd order by dt) as first_dna_date 
+From "db-analytics-dev"."dna_fixed_cr"
 )
 
-,joint_bases_ei as(
-  select t.*,i.sales_month,i.act_cust_strt_dt,i.inst_month,i.act_acct_inst_dt
-  From Initial_Table_interactions t left join Installation_Interactions i
-  on t.Contrato=act_acct_cd
+,EarlyInt as(
+select a.*,b.* FROM interactions a inner join CustStarts b
+on account_id=act_acct_cd
+WHERE date_diff('day',date(act_cust_strt_dt),date(interaction_start_time))<=21
 )
 
-,account_summary_interactions as(
-  select Contrato as Account_ID, 
-  max(case when date_diff('day',date(act_cust_strt_dt),date(interaction_start_time))<=21 then contrato else null end) as early_interaction,
-  Sales_Month,Inst_Month,date_trunc('Month',interaction_start_time) as Interaction_month
-  From joint_bases_ei
-  group by 1,3,4,5
-)
 
 ,Early_interaction_MasterTable AS(
-  SELECT DISTINCT f.*,early_interaction as EarlyIssue_Flag,Interaction_Month
-  FROM NeverPaid_MasterTable f LEFT JOIN account_summary_interactions c 
-  ON Fixed_Account=account_id AND Interaction_Month=Month 
+  SELECT DISTINCT f.*,c.act_acct_cd as EarlyIssue_Flag,Interaction_Month,start_month
+  FROM NeverPaid_MasterTable f LEFT JOIN EarlyInt c 
+  ON Fixed_Account=c.act_acct_cd AND date_trunc('Month',first_dna_date)=Month 
 )
+
+
+
 
 -------------------------------------- New users early tech tickets -------------------------------
-
-,Initial_Table_Tickets as(
-  select date_trunc('Month',interaction_start_time) as Ticket_Month,account_id AS Contrato,interaction_id,min(interaction_start_time) as interaction_start_time
-  FROM "interactions_cabletica"
-  where interaction_purpose_descrip IS NOT NULL AND account_id IS NOT NULL
-  and interaction_status <> 'ANULADA'
-  --AND TIQUETE NOT IN (SELECT DISTINCT TIQUETE FROM `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.20220713_CR_TIQUETES_AVERIA_2021-01_A_2022-06_D` WHERE CLIENTE LIKE '%SIN PROBLEMA%')
-  --FALTA DEFINIR CONDICIONES QUE INDIQUEN SI ES UNA AVERÍAAAAA
-  group by 1,2,3
+,tickets as(
+select date_trunc('Month',interaction_start_time) as ticket_month,interaction_start_time,account_id,interaction_end_time FROM "interactions_cabletica" 
+WHERE (account_type='RESIDENCIAL' or account_type='PROGRAMA HOGARES CONECTADOS') and date_trunc('Month',interaction_start_time)>=date('2022-01-01') and interaction_status <> 'ANULADA'
+and interaction_purpose_descrip IN (
+'AVERIAS',
+'SIN SERVICIO INTERNET',
+'INTERRUPCION CONSTANT SERVICIO',
+'SIN SEÃ‘AL',
+'SIN SERVICIO TV',
+'SIN SEÃ‘AL UNO/VARIOS CH DVB',
+'PROB CABLE MODEM',
+'MENSAJE ERROR DVB',
+'PROB STB DVB',
+'MENSAJE ERROR',
+'CALIDAD SEÃ‘AL',
+'SIN SERVICIO TODOS LOS CH DVB',
+'SIN SERVICIO TELEFONIA',
+'AVERIA',
+'PROB STB'
+)
 )
 
-,Installation_contracts AS (
-    SELECT date_trunc('Month',min(act_cust_strt_dt)) as Sales_Month, act_acct_cd,min(act_cust_strt_dt) as act_cust_strt_dt,
-    min(act_acct_inst_dt) as  act_acct_inst_dt,date_trunc('Month',min(act_acct_inst_dt)) as Inst_Month
-    FROM "db-analytics-dev"."dna_fixed_cr"
-    GROUP BY 2
+,TicketStarts as(
+select distinct date_trunc('Month',act_cust_strt_dt) as start_month,act_cust_strt_dt,act_acct_cd,
+first_value(date(dt)) over(partition by act_acct_cd order by dt) as first_dna_date 
+From "db-analytics-dev"."dna_fixed_cr"
 )
 
-,joint_bases_et as(
-  select t.*,i.sales_month,i.act_cust_strt_dt,i.inst_month,i.act_acct_inst_dt
-  From Initial_Table_Tickets t left join Installation_contracts i
-  on t.Contrato=act_acct_cd
+,EarlyTick as(
+select a.*,b.* FROM tickets a inner join TicketStarts b
+on account_id=act_acct_cd
+WHERE date_diff('week',date(act_cust_strt_dt),date(interaction_start_time))<=7
 )
-
-,account_summary_tickets as(
-  select Contrato as Account_ID, 
-  max(case when date_diff('week',date(act_cust_strt_dt),date(interaction_start_time))<=7 then contrato else null end) as early_ticket,
-  Sales_Month,Inst_Month,date_trunc('Month',interaction_start_time) as ticket_month
-  From joint_bases_et
-  group by 1,3,4,5
-)
-
-
 
 ,CallsMasterTable AS (
-  SELECT DISTINCT f.*, early_ticket as TechCall_Flag FROM Early_interaction_MasterTable f LEFT JOIN account_summary_tickets c 
-  ON Fixed_Account=Account_ID AND Month=Ticket_Month
+  SELECT DISTINCT f.*, act_acct_cd as TechCall_Flag FROM Early_interaction_MasterTable f LEFT JOIN EarlyTick c 
+  ON Fixed_Account=Account_ID AND Month=date_trunc('Month',first_dna_date)
 )
 
-
 --------------------------------------------- Bill Claims ------------------------------------
+
+
+
+
 
 ,CALLS AS (
 SELECT account_id AS CONTRATO, DATE_TRUNC('Month',interaction_start_time) AS Call_Month, Interaction_id
@@ -155,7 +154,13 @@ SELECT account_id AS CONTRATO, DATE_TRUNC('Month',interaction_start_time) AS Cal
     WHERE 
         account_id IS NOT NULL
         AND interaction_status <> 'ANULADA'
-        AND interaction_purpose_descrip = 'FACTURACION/COBROS' -- billing
+        AND interaction_purpose_descrip IN( 
+        'FACTURACION/COBROS',
+        'MONTO DE FACTURACION',
+        'VENCIMIENTO PROMOCION',
+        'CAMBIO DE PRECIO',
+        'ANULACION DE FACTURA'
+)
 )
 ,CallsPerUser AS (
     SELECT DISTINCT CONTRATO, Call_Month, Count(DISTINCT interaction_id) AS NumCalls
@@ -184,34 +189,20 @@ FROM AbsMRC
 
 -------------------------------------- Outlier Installation ---------------------------------
 
-,INSTALACIONES_OUTLIER AS (
-    SELECT DISTINCT ACT_ACCT_CD, /*DATE(MIN(ACT_ACCT_INST_DT)) AS INSTALLATION_DT,*/ DATE_TRUNC('Month',MIN(ACT_ACCT_INST_DT)) AS InstallationMonth
-    FROM "db-analytics-dev"."dna_fixed_cr"
-    GROUP BY 1
-)
-
-,tiempo_instalacion AS (
-    SELECT account_id AS NOMBRE_CONTRATO,DATE_TRUNC('Month',completed_date) AS InstallationMonth,
-        Date_DIFF('Day',order_start_date,completed_date) AS DIAS_INSTALACION,
-        CASE WHEN Date_DIFF('Day',order_start_date,completed_date) >= 6 THEN account_id ELSE NULL END AS long_install_flag,
-        CASE WHEN account_id IS NOT NULL THEN 'Installation' ELSE NULL END AS Installations
-    FROM "db-stage-dev"."so_cr"
-    WHERE
-        order_type = 'INSTALACION' 
-        AND order_status = 'FINALIZADA'
-        --AND TIPO_CLIENTE IN ("PROGRAMA HOGARES CONECTADOS", "RESIDENCIAL", "EMPLEADO")
-)
-
-
-,Installations_6_days AS (
-    SELECT ACT_ACCT_CD, a.InstallationMonth, b.long_install_flag FROM INSTALACIONES_OUTLIER a LEFT JOIN tiempo_instalacion b
-    ON NOMBRE_CONTRATO=ACT_ACCT_CD AND a.InstallationMonth=b.InstallationMonth
+,Installations_6_days as(
+SELECT distinct account_name,order_id, date_trunc('Day',order_start_date) as start_date,Date_Trunc('Day',completed_date) as completed_date,
+Date_DIFF('Day',order_start_date,completed_date) as Install_Time
+FROM "db-stage-dev"."so_cr"
+WHERE
+order_type = 'INSTALACION' 
+AND order_status = 'FINALIZADA'
+AND Date_DIFF('Day',order_start_date,completed_date) >5
 )
 
 
 ,OutliersMasterTable AS (
-    SELECT DISTINCT f.*, long_install_flag
-    FROM BillShocks f LEFT JOIN Installations_6_days b ON b.ACT_ACCT_CD=Fixed_Account AND Month=InstallationMonth
+    SELECT DISTINCT f.*, b.account_name as long_install_flag
+    FROM BillShocks f LEFT JOIN Installations_6_days b ON b.account_name=Fixed_Account AND Month=date_trunc('Month',completed_date)
 )
 
 --------------------------------------- Mounting Bills --------------------------------
@@ -235,7 +226,27 @@ FROM AbsMRC
 )
 
 --------------------------------------- Sales Channel ----------------------------------
+,SalesChannel as(
+SELECT distinct date_trunc('Month',order_start_date) as mes_venta,account_name,
+first_value (channel_desc) over(PARTITION  BY account_name ORDER BY order_start_date) AS sales_channel
+FROM "db-stage-dev"."so_cr"
+WHERE
+order_type = 'INSTALACION' 
+AND order_status = 'FINALIZADA'
+)
 
+,ChannelsMasterTable AS (
+    select distinct f.*, sales_channel from MountingBills_MasterTable f left join SalesChannel s
+    on account_name=f.Fixed_Account AND s.mes_venta=Month
+)
+
+
+--select * FROM ChannelsMasterTable
+--WHERE Fixed_Account='1414816'
+--order by Month
+
+
+/*
 ,SalesChannel as (
 SELECT distinct date_trunc('Month',cast(dt as date)) as ChannelMonth,account_name,channel_desc
 FROM "db-stage-dev"."so_cr"
@@ -254,7 +265,7 @@ on account_name=act_acct_cd and Install_Month=date_trunc('Month',ChannelMonth)
     select distinct f.*, channel_desc from MountingBills_MasterTable f left join SalesChannelsInstallations s
     on account_name=f.Fixed_Account AND s.Install_Month=Month
 )
-
+*/
 
 
 
@@ -268,10 +279,10 @@ count (distinct increase_flag) as MRC_Change, count (distinct no_plan_change_fla
 count(distinct EarlyIssue_Flag) as EarlyIssueCall, count(distinct TechCall_Flag) as TechCalls,
 count(distinct BillClaim_Flag) as BillClaim,
 count(distinct MountingBill_Flag) as MountingBills
-,channel_desc
+--,sales_channel
 --,sales_Month,Install_Month
 from ChannelsMasterTable
 Where finalchurnflag<>'Fixed Churner' AND finalchurnflag<>'Customer Gap' AND finalchurnflag<>'Full Churner' AND finalchurnflag<>'Churn Exception'
 --and sales_month>cast('2022-07-01' as date) and Install_month>cast('2022-07-01' as date)
-Group by 1,2,3,4,16--,16,17--,18
-Order by 1 desc, 2,3,4
+Group by 1,2,3,4--,16--,16,17--,18
+Order by 1 desc--, 2,3,4
