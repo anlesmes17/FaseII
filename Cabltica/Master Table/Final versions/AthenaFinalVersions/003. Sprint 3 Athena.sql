@@ -22,14 +22,28 @@ From "db-analytics-dev"."dna_fixed_cr"
 select f.*,Sales_Month,Install_Month
 From FmcTable f left join total_installs b
 ON b.act_acct_cd=Fixed_Account and cast(Month as varchar)=cast(Install_Month as varchar)
+)
 
+,Sales_data as(
+select distinct date_trunc('Month',act_acct_inst_dt) as Install,first_value(date(dt)) over(partition by act_acct_cd order by dt) as first_dna_date,act_acct_cd --,count(distinct act_acct_cd)
+From "db-analytics-dev"."dna_fixed_cr" 
+Where (act_cust_typ='RESIDENCIAL' or act_cust_typ='PROGRAMA HOGARES CONECTADOS') and act_acct_stat='ACTIVO'
+)
+
+,One_sale as (
+select *, CASE
+WHEN Install>=date_trunc('Month',first_dna_date) THEN Install
+ELSE date_trunc('Month',first_dna_date) END AS Sale_date
+FROM Sales_data
 )
 
 ,sales_fmc_table as(
 Select f.*, b.act_acct_cd as monthsale_flag 
-From installs_fmc_table f left join "db-analytics-dev"."dna_fixed_cr" b
-ON act_acct_cd=Fixed_Account and Month=cast(date_trunc('Month',date_add('Month',1,act_cust_strt_dt)) as date)
+From installs_fmc_table f left join One_sale b
+ON act_acct_cd=Fixed_Account and Month=Sale_date
 )
+
+
 
 ---------------------------------------- Soft Dx & Never Paid ------------------------------
 
@@ -43,7 +57,6 @@ ON act_acct_cd=Fixed_Account and Month=cast(date_trunc('Month',date_add('Month',
     Select distinct Date_Trunc('Month',cast(dt as date)),act_acct_cd,OLDEST_UNPAID_BILL_DT,FI_OUTST_AGE,date_trunc('Month',min(act_cust_strt_dt)) as Sales_Month,dt
     From "db-analytics-dev"."dna_fixed_cr"
     group by 1,2,3,4,6
-    --order by 1 desc
 )
 
 ,JoinFirstBill as(
@@ -144,10 +157,6 @@ WHERE date_diff('week',date(act_cust_strt_dt),date(interaction_start_time))<=7
 
 --------------------------------------------- Bill Claims ------------------------------------
 
-
-
-
-
 ,CALLS AS (
 SELECT account_id AS CONTRATO, DATE_TRUNC('Month',interaction_start_time) AS Call_Month, Interaction_id
     FROM "interactions_cabletica"
@@ -239,11 +248,6 @@ AND order_status = 'FINALIZADA'
     select distinct f.*, sales_channel from MountingBills_MasterTable f left join SalesChannel s
     on account_name=f.Fixed_Account AND s.mes_venta=Month
 )
-
-
---select * FROM ChannelsMasterTable
---WHERE Fixed_Account='1414816'
---order by Month
 
 
 /*
