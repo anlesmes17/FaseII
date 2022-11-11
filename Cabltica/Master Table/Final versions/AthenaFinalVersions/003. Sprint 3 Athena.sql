@@ -123,18 +123,23 @@ and interaction_purpose_descrip IN (
 'AVERIAS',
 'SIN SERVICIO INTERNET',
 'INTERRUPCION CONSTANT SERVICIO',
-'SIN SEÃ‘AL',
+'SIN SEÑAL',
 'SIN SERVICIO TV',
-'SIN SEÃ‘AL UNO/VARIOS CH DVB',
+'SIN SEÑAL UNO/VARIOS CH DVB',
 'PROB CABLE MODEM',
 'MENSAJE ERROR DVB',
 'PROB STB DVB',
 'MENSAJE ERROR',
-'CALIDAD SEÃ‘AL',
+'CALIDAD SEÑAL',
 'SIN SERVICIO TODOS LOS CH DVB',
 'SIN SERVICIO TELEFONIA',
 'AVERIA',
-'PROB STB'
+'PROB STB',
+'PROB VELOCIDAD',
+'OTRO INTERNET',
+'FECHA Y HORA DE VISITA WEB',
+'CONTROL REMOTO',
+'PROB STB DIG'
 )
 )
 
@@ -163,12 +168,15 @@ SELECT account_id AS CONTRATO, DATE_TRUNC('Month',interaction_start_time) AS Cal
     WHERE 
         account_id IS NOT NULL
         AND interaction_status <> 'ANULADA'
-        AND interaction_purpose_descrip IN( 
+        AND interaction_purpose_descrip IN ( 
         'FACTURACION/COBROS',
         'MONTO DE FACTURACION',
         'VENCIMIENTO PROMOCION',
         'CAMBIO DE PRECIO',
-        'ANULACION DE FACTURA'
+        'ANULACION DE FACTURA',
+        'FORMA DE PAGO',
+        'PROMOCION DEFINITIVA',
+        'COSTO DE SERVICIOS'
 )
 )
 ,CallsPerUser AS (
