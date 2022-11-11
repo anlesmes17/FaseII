@@ -57,18 +57,24 @@ and interaction_purpose_descrip IN (
 'AVERIAS',
 'SIN SERVICIO INTERNET',
 'INTERRUPCION CONSTANT SERVICIO',
-'SIN SEÃ‘AL',
+'SIN SEÑAL',
 'SIN SERVICIO TV',
-'SIN SEÃ‘AL UNO/VARIOS CH DVB',
+'SIN SEÑAL UNO/VARIOS CH DVB',
 'PROB CABLE MODEM',
 'MENSAJE ERROR DVB',
 'PROB STB DVB',
 'MENSAJE ERROR',
-'CALIDAD SEÃ‘AL',
+'CALIDAD SEÑAL',
 'SIN SERVICIO TODOS LOS CH DVB',
 'SIN SERVICIO TELEFONIA',
 'AVERIA',
-'PROB STB')
+'PROB STB',
+'PROB VELOCIDAD',
+'OTRO INTERNET',
+'FECHA Y HORA DE VISITA WEB',
+'CONTROL REMOTO',
+'PROB STB DIG'
+)
 )
 
 ,Tiquetes_Mes AS (
@@ -148,25 +154,54 @@ Date_add('Day',-60,MAX(date(FECHA_TIQUETE))) AS MAX_APERTURA_60D
     GROUP BY 1,2
 )
 
---,FailedInstallationsMasterTable AS(
+,FailedInstallationsMasterTable AS(
   SELECT DISTINCT f.*, ContratoInstallations AS FailedInstallations
   FROM MultipleTicketsMasterTable f LEFT JOIN FailedInstallations ON ContratoInstallations=Fixed_Account AND f.Month=InstallationMonth
---)
+)
 
 ----------------------------------- Tech Tickets ---------------------------
 
 ,NumTiquetes AS(
-    SELECT account_id AS Contrato, Date_trunc('Month',order_start_time) AS TiquetMonth, Count(Distinct interaction_id) AS NumTechTickets
+    SELECT account_id AS Contrato, Date_trunc('Month',interaction_start_time) AS TiquetMonth, Count(Distinct interaction_id) AS NumTechTickets
     FROM "interactions_cabletica"
     WHERE 
-        CLASE IS NOT NULL AND MOTIVO IS NOT NULL AND CONTRATO IS NOT NULL
-        AND ESTADO <> "ANULADA"
-        AND MOTIVO <> "LLAMADA  CONSULTA DESINSTALACION"
+        interaction_purpose_descrip IN (
+'AVERIAS',
+'SIN SERVICIO INTERNET',
+'INTERRUPCION CONSTANT SERVICIO',
+'SIN SEÑAL',
+'SIN SERVICIO TV',
+'SIN SEÑAL UNO/VARIOS CH DVB',
+'PROB CABLE MODEM',
+'MENSAJE ERROR DVB',
+'PROB STB DVB',
+'MENSAJE ERROR',
+'CALIDAD SEÑAL',
+'SIN SERVICIO TODOS LOS CH DVB',
+'SIN SERVICIO TELEFONIA',
+'AVERIA',
+'PROB STB',
+'PROB VELOCIDAD',
+'OTRO INTERNET',
+'FECHA Y HORA DE VISITA WEB',
+'CONTROL REMOTO',
+'PROB STB DIG'
+)
     GROUP BY 1,2
 )
 
 ,NumTiquetesMasterTable AS(
     SELECT F.*,NumTechTickets 
-    FROM failedinstallationsmastertable f LEFT JOIN NumTiquetes ON CONTRATO=RIGHT(CONCAT('0000000000',Final_Account),10) AND safe_cast(TiquetMonth as string)=Month
+    FROM failedinstallationsmastertable f LEFT JOIN NumTiquetes ON Contrato=Final_Account AND TiquetMonth=Month
 )
 
+
+---------------------------------------- CSV File -------------------------------
+select distinct Month,--B_FinalTechFlag, B_FMC_Segment,B_FMCType, E_FinalTechFlag, E_FMC_Segment,E_FMCType,FinalChurnFlag,B_TenureFinalFlag,E_TenureFinalFlag,
+ count(distinct fixed_account) as activebase, count(distinct oneCall) as OneCall_Flag,count(distinct TwoCalls) as TwoCalls_Flag,count(distinct MultipleCalls) as MultipleCalls_Flag,
+ count(distinct OneTicket) as OneTicket_Flag,count(distinct TwoTickets) as TwoTickets_Flag,count(distinct MultipleTickets) as MultipleTickets_Flag,
+ count(distinct FailedInstallations) as FailedInstallations_Flag, round(sum(NumTechTickets)) as TicketDensity_Flag
+from NumTiquetesMasterTable
+Where finalchurnflag<>'Fixed Churner' AND finalchurnflag<>'Customer Gap' AND finalchurnflag<>'Full Churner' AND finalchurnflag<>'Churn Exception'
+Group by 1--,2,3,4,5,6,7,8,9,10
+Order by 1 desc, 2,3,4
