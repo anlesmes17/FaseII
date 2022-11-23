@@ -218,49 +218,59 @@ FROM Churnersjoin
 WHERE Submotivo IS NOT NULL
 )
 */
+,mora_error as(
+select distinct month,dt,act_acct_cd,maxinst,mora,prev_mora,next_mora
+,case when ( (mora-prev_mora)>2 and (mora-next_mora)>2 ) or ( (mora-prev_mora)<-2 and (mora-next_mora)<-2 ) then 1 else 0 end as mora_salto
+from(
+select distinct month, dt, act_acct_cd,FI_OUTST_AGE as mora, maxinst
+,lag(fi_outst_age) over(partition by act_acct_cd order by dt desc) as next_mora
+,lag(fi_outst_age) over(partition by act_acct_cd order by dt) as prev_mora
+FROM UsefulFields 
+)
+order by act_acct_cd,dt
+)
+,mora_arreglada as(
+select distinct *
+,case when mora_salto=1 then prev_mora+1 else mora end as mora_fix
+from mora_error
+order by 3,2
+)
 
-
+--------------------------------------------INVOL
 ,FIRSTCUSTRECORD AS (
-    SELECT DATE_TRUNC('MONTH',date(dt)) AS MES, act_acct_cd AS Account, min(date(dt)) AS FirstCustRecord,date_add('day',-1,min(date(dt))) as PrevFirstCustRecord
-    FROM UsefulFields 
-    WHERE CAST(fi_outst_age as INT) < 90 and CAST(fi_outst_age as INT) > 40 
+    SELECT DATE_TRUNC('MONTH',date(dt)) AS MES, act_acct_cd AS Account, min(date(dt)) AS FirstCustRecord
+    FROM mora_arreglada
+    WHERE CAST(mora_fix as INT) < 90 
     --WHERE date(dt) = date_trunc('MONTH', DATE(dt)) + interval '1' MONTH - interval '1' day
     Group by 1,2
 )
 
 ,LastCustRecord as(
-    SELECT  DATE_TRUNC('MONTH', DATE(dt)) AS MES, act_acct_cd AS Account, max(date(dt)) as LastCustRecord,date_add('day',-1,max(date(dt))) as PrevLastCustRecord,date_add('day',-2,max(date(dt))) as PrevLastCustRecord2
-    FROM UsefulFields 
+    SELECT  DATE_TRUNC('MONTH', DATE(dt)) AS MES, act_acct_cd AS Account, max(date(dt)) as LastCustRecord
+    FROM mora_arreglada
       --WHERE DATE(LOAD_dt) = date_trunc('MONTH', DATE(LOAD_dt)) + interval '1' MONTH - interval '1' day
    Group by 1,2
    order by 1,2
 )
 
  ,NO_OVERDUE AS(
- SELECT DISTINCT DATE_TRUNC('MONTH',date(dt)) AS MES, act_acct_cd AS Account, fi_outst_age
- FROM UsefulFields t
+ SELECT DISTINCT DATE_TRUNC('MONTH',date(dt)) AS MES, act_acct_cd AS Account, mora_fix
+ FROM mora_arreglada t
  INNER JOIN FIRSTCUSTRECORD  r ON r.account = t.act_acct_cd
- WHERE CAST(fi_outst_age as INT) < 90 and CAST(fi_outst_age as INT) > 50 
- and (date(t.dt) = r.FirstCustRecord or date(t.dt)=r.PrevFirstCustRecord
- )
+ WHERE CAST(mora_fix as INT) < 90 
  GROUP BY 1, 2, 3
 )
 
 
  ,OVERDUELASTDAY AS(
- SELECT DISTINCT DATE_TRUNC('MONTH', DATE(dt)) AS MES, act_acct_cd AS Account, fi_outst_age,
+ SELECT DISTINCT DATE_TRUNC('MONTH', DATE(dt)) AS MES, act_acct_cd AS Account, mora_fix,
  (date_diff('DAY',MaxInst,DATE(dt))) as ChurnTenureDays
- FROM UsefulFields t
+ FROM mora_arreglada t
  INNER JOIN LastCustRecord r ON date(t.dt) = r.LastCustRecord and 
  r.account = t.act_acct_cd
- WHERE (date(t.dt)=r.LastCustRecord or date(t.dt)=r.PrevLastCustRecord --or date(t.dt)=r.PrevLastCustRecord2
- )
- and CAST(fi_outst_age AS INTEGER) >= 90 and CAST(fi_outst_age AS INTEGER) < 180
+ WHERE date(t.dt)=r.LastCustRecord and CAST(mora_fix AS INTEGER) >= 90 
  GROUP BY 1, 2, 3, 4
  )
---Select * From NO_OVERDUE
---where Account='842641'
---order by 1
  
  ,INVOLUNTARYNETCHURNERS AS(
  SELECT DISTINCT n.MES AS Month, n. account, l.ChurnTenureDays
@@ -271,7 +281,7 @@ WHERE Submotivo IS NOT NULL
 SELECT DISTINCT i.Month, i.Account AS ChurnAccount, i.ChurnTenureDays
 ,CASE WHEN i.Account IS NOT NULL THEN '2. Fixed Involuntary Churner' END AS FixedChurnerType
 FROM INVOLUNTARYNETCHURNERS i left join usefulfields f on i.account=f.act_acct_cd and i.month=date_trunc('month',date(f.dt))
-where last_overdue>=90 and CAST(last_overdue AS INTEGER) < 180
+where last_overdue>=90 
 GROUP BY 1, Account,4, ChurnTenureDays
 )
 
@@ -331,4 +341,19 @@ CONCAT(coalesce(B_VO_nm,'-'),coalesce(B_TV_nm,'-'),coalesce(B_BB_nm,'-')) AS B_P
 ,CONCAT(coalesce(E_VO_nm,'-'),coalesce(E_TV_nm,'-'),coalesce(E_BB_nm,'-')) AS E_PLAN
 FROM FullFixedBase_Rejoiners
 )
-select * From FinalTable
+/*
+select distinct fixed_account,count(*)
+From FinalTable
+WHERE FixedChurnerType IS NOT NULL --and date_trunc('Month',Fixed_Month)<>date('2022-08-01')
+group by 1
+order by 2 desc
+*/
+--/*
+select distinct Fixed_Month,count(fixed_account)
+From FinalTable
+WHERE FixedChurnerType IS NOT NULL
+group by 1
+order by 1
+--*/
+--select * From FinalTable --limit 10
+--order by 2,1
