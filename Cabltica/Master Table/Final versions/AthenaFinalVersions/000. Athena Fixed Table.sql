@@ -72,7 +72,7 @@ CASE WHEN RGU_VO= 1 THEN act_acct_cd ELSE NULL END As VO_RGU_BOM
     FROM UsefulFields c 
     --WHERE date(dt) = DATE_TRUNC('Month', date(dt))
     --LEFT JOIN "db-analytics-dev"."dna_fixed_cr"  on c.act_acct_cd on --Tipo tecnologia es bb,tv,vo y/o _media o _tech  ON PD_BB_PROD_nm=ActivoInternet
-    WHERE date(dt) = DATE_TRUNC('Month', date(dt))
+    WHERE (date(dt) = DATE_TRUNC('Month', date(dt)) and DATE_TRUNC('Month', date(dt))<>date('2022-10-01')) OR dt='2022-10-07'
 )
 
 
@@ -114,7 +114,7 @@ SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS 
     --WHEN (RGU_BB = 1 AND RGU_TV = 1 AND RGU_VO = 1) THEN '3P' END AS E_MixCode_Adj
     
     FROM UsefulFields c 
-    WHERE date(dt) = DATE_TRUNC('month', date(dt))
+    WHERE (date(dt) = DATE_TRUNC('Month', date(dt)) and DATE_TRUNC('Month', date(dt))<>date('2022-10-01')) OR dt='2022-10-07'
     
     --LEFT JOIN `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-01-13_CR_CATALOGUE_TV_INTERNET_2021_T` ON PD_BB_PROD_nm=ActivoInternet
     --WHERE date(dt) = DATE_TRUNC('month', date(dt))
@@ -296,9 +296,3 @@ FROM FullFixedBase_Rejoiners
 )
 
 Select * From FinalTable 
---where Fixed_Month=cast('2022-10-01' as date) and activeeom=1 --and e_numrgus=0
-
-
---where Fixed_Month=cast('2022-10-01' as date) and activeeom=1 and e_numrgus=0
---group by 1
---order by 1
