@@ -1,7 +1,13 @@
 --CREATE TABLE IF NOT EXISTS "lla_cco_int_san"."cr_fixed_table"  AS  
 
 WITH 
-UsefulFields AS(
+
+Parameters as(
+Select 90 as InvoluntaryChurnDays
+)
+
+
+,UsefulFields AS(
 SELECT DISTINCT DATE_TRUNC ('Month' , cast(dt as date)) AS Month,dt, act_acct_cd, pd_vo_prod_nm, 
 PD_TV_PROD_nm, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE, first_value (ACT_ACCT_INST_DT) over(PARTITION  BY act_acct_cd ORDER BY dt ASC) AS MinInst,
 first_value (ACT_ACCT_INST_DT) over(PARTITION  BY act_acct_cd ORDER BY ACT_ACCT_INST_DT DESC) AS MaxInst,CST_CHRN_DT AS ChurnDate, DATE_DIFF('DAY',cast(OLDEST_UNPAID_BILL_DT as date), cast(dt as date)) AS MORA, ACT_CONTACT_MAIL_1,act_contact_phone_1,round(FI_VO_MRC_AMT,0) AS mrcVO, round(FI_BB_MRC_AMT,0) AS mrcBB, round(FI_TV_MRC_AMT,0) AS mrcTV,round((FI_VO_MRC_AMT + FI_BB_MRC_AMT + FI_TV_MRC_AMT),0) as avgmrc, round(FI_BILL_AMT_M0,0) AS Bill, ACT_CUST_STRT_DT,
@@ -28,7 +34,8 @@ ELSE '1P' END AS MIX, pd_bb_tech,
 
 CASE 
 WHEN pd_bb_prod_nm LIKE '%FTTH%' OR pd_tv_prod_nm ='NextGen TV' THEN 'FTTH'
-ELSE 'HFC' END AS TechFlag
+ELSE 'HFC' END AS TechFlag,
+first_value(fi_outst_age) over(partition by act_acct_cd,date_trunc('month',date(dt)) order by date(dt) desc) as Last_Overdue
 
 FROM "db-analytics-dev"."dna_fixed_cr"
 Where (act_cust_typ='RESIDENCIAL' or act_cust_typ='PROGRAMA HOGARES CONECTADOS') and act_acct_stat='ACTIVO'
@@ -204,7 +211,7 @@ SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS 
 
 --------------------------------------- Fixed Churn Flags --------------------------------------------------------
 ------------------------------------------Voluntary & Involuntary-------------------------------------------------------------
-,MAX_SO_CHURN AS(
+/*,MAX_SO_CHURN AS(
  SELECT DISTINCT account_name AS CONTRATOSO, DATE_TRUNC('Month',MAX(order_start_date)) as DeinstallationMonth, MAX(order_start_date) AS FECHA_CHURN
  FROM "db-stage-dev"."so_cr"
  WHERE
@@ -249,12 +256,136 @@ ELSE NULL END AS FixedChurnTypeFlag
 FROM Churnersjoin
 WHERE Submotivo IS NOT NULL
 )
+*/
+
+--------------------------------------------Voluntary
+
+,InactiveUsers as(
+Select distinct Fixed_Month,Fixed_Account
+From SPINMOVEMENTBASE
+WHERE ActiveBOM=1 and (ActiveEOM=0 or ActiveEOM is null) 
+)
+
+,Deinstallations as(
+Select distinct date_trunc('Month',order_start_date) as D_Month, account_name From "db-stage-dev"."so_cr"
+WHERE order_type = 'DESINSTALACION' AND (order_status <> 'CANCELADA' OR order_status <> 'ANULADA') 
+)
+
+,ChurnDeinstallations as(
+select f.*,b.*, case
+when Account_Name is not null THEN '1. Fixed Voluntary Churner'
+Else Null End as VolChurners
+From InactiveUsers f inner join Deinstallations b 
+ON account_name=Fixed_Account and date_diff('Month',D_Month,Fixed_month) <=1
+)
 
 
+
+
+--------------------------------------------Involunary
+
+,mora_error as(
+select distinct month,dt,act_acct_cd,maxinst,mora,prev_mora,next_mora
+,case when ( (mora-prev_mora)>2 and (mora-next_mora)>2 ) or ( (mora-prev_mora)<-2 and (mora-next_mora)<-2 ) then 1 else 0 end as mora_salto
+from(
+select distinct month, dt, act_acct_cd,FI_OUTST_AGE as mora, maxinst
+,lag(fi_outst_age) over(partition by act_acct_cd order by dt desc) as next_mora
+,lag(fi_outst_age) over(partition by act_acct_cd order by dt) as prev_mora
+FROM UsefulFields 
+)
+order by act_acct_cd,dt
+)
+,mora_arreglada as(
+select distinct *
+,case when mora_salto=1 then prev_mora+1 
+when mora is null and next_mora=prev_mora+2 then prev_mora+1 
+else mora end as mora_fix
+from mora_error
+order by 3,2
+)
+
+
+,FIRSTCUSTRECORD AS (
+    SELECT DATE_TRUNC('MONTH',date(dt)) AS MES, act_acct_cd AS Account, min(date(dt)) AS FirstCustRecord
+    FROM mora_arreglada
+    WHERE CAST(mora_fix as INT) < (select InvoluntaryChurnDays From parameters)
+    --WHERE date(dt) = date_trunc('MONTH', DATE(dt)) + interval '1' MONTH - interval '1' day
+    Group by 1,2
+)
+
+,LastCustRecord as(
+    SELECT  DATE_TRUNC('MONTH', DATE(dt)) AS MES, act_acct_cd AS Account, max(date(dt)) as LastCustRecord
+    FROM mora_arreglada
+      --WHERE DATE(LOAD_dt) = date_trunc('MONTH', DATE(LOAD_dt)) + interval '1' MONTH - interval '1' day
+   Group by 1,2
+   order by 1,2
+)
+
+ ,NO_OVERDUE AS(
+ SELECT DISTINCT DATE_TRUNC('MONTH',date(dt)) AS MES, act_acct_cd AS Account, mora_fix
+ FROM mora_arreglada t
+ INNER JOIN FIRSTCUSTRECORD  r ON r.account = t.act_acct_cd
+ WHERE CAST(mora_fix as INT) < (select InvoluntaryChurnDays From parameters)
+ GROUP BY 1, 2, 3
+)
+
+
+ ,OVERDUELASTDAY AS(
+ SELECT DISTINCT DATE_TRUNC('MONTH', DATE(dt)) AS MES, act_acct_cd AS Account, mora_fix,
+ (date_diff('DAY',MaxInst,DATE(dt))) as ChurnTenureDays
+ FROM mora_arreglada t
+ INNER JOIN LastCustRecord r ON date(t.dt) = r.LastCustRecord and 
+ r.account = t.act_acct_cd
+ WHERE date(t.dt)=r.LastCustRecord and CAST(mora_fix AS INTEGER) >= (select InvoluntaryChurnDays From parameters)
+ GROUP BY 1, 2, 3, 4
+ )
+ 
+ ,INVOLUNTARYNETCHURNERS AS(
+ SELECT DISTINCT n.MES AS Month, n. account, l.ChurnTenureDays
+ FROM NO_OVERDUE n INNER JOIN OVERDUELASTDAY l ON n.account = l.account and n.MES = l.MES
+ )
+
+,InvoluntaryChurners AS(
+SELECT DISTINCT i.Month, i.Account AS ChurnAccount, i.ChurnTenureDays
+,CASE WHEN i.Account IS NOT NULL THEN '2. Fixed Involuntary Churner' END AS InvolChurner
+FROM INVOLUNTARYNETCHURNERS i left join usefulfields f on i.account=f.act_acct_cd and i.month=date_trunc('month',date(f.dt))
+where last_overdue>=(select InvoluntaryChurnDays From parameters)
+GROUP BY 1, Account,4, ChurnTenureDays
+)
+
+,FinalInvoluntaryChurners AS(
+    SELECT DISTINCT MONTH, ChurnAccount, InvolChurner
+    FROM InvoluntaryChurners
+    WHERE InvolChurner = '2. Fixed Involuntary Churner'
+)
+
+,AllChurners AS(
+SELECT f.*,b.* From ChurnDeinstallations f Full Outer Join FinalInvoluntaryChurners b
+ON Fixed_Month=Month and ChurnAccount=Account_Name
+)
+,FinalFixedChurners as(
+select 
+case when Fixed_Month is not null THEN Fixed_Month else Month End as ChurnMonth,
+case when Fixed_Account is not null THEN Fixed_Account else ChurnAccount End as Churn_Account,
+case when VolChurners is not null THEN VolChurners else InvolChurner end as FixedChurnerType
+From AllChurners
+)
+
+,ChurnersFixedTable as(
+select f.*,FixedChurnerType FROM SPINMOVEMENTBASE f left join FinalFixedChurners b
+on Fixed_Month=ChurnMonth and Fixed_Account=Churn_Account
+)
+
+
+/*
 ,ChurnersFixedTable as(
 select f.*,FixedChurnTypeFlag FROM SPINMOVEMENTBASE f left join MaxFechaJoin b
 on Fixed_Month=date_trunc('Month',b.DxMonth) and Fixed_Account=b.act_acct_cd
 )
+*/
+
+
+
 
 
 --------------------------------------------------------------------------- Rejoiners -------------------------------------------------------------
@@ -286,13 +417,31 @@ THEN 1 ELSE 0 END AS Fixed_Rejoiner
 FROM ChurnersFixedTable f LEFT JOIN FixedRejoinerFebPopulation r ON f.Fixed_Account=r.Fixed_Account AND f.Fixed_Month=CAST(r.Month AS DATE)
 )
 ,FinalTable as(
-SELECT *,CASE
+SELECT *,/*CASE
 WHEN FixedChurnTypeFlag is not null THEN b_NumRGUs
 WHEN MainMovement='Downsell' THEN (B_NumRGUs - E_NumRGUs)
-ELSE NULL END AS RGU_Churn,
+ELSE NULL END AS RGU_Churn,*/
 CONCAT(coalesce(B_VO_nm,'-'),coalesce(B_TV_nm,'-'),coalesce(B_BB_nm,'-')) AS B_PLAN
 ,CONCAT(coalesce(E_VO_nm,'-'),coalesce(E_TV_nm,'-'),coalesce(E_BB_nm,'-')) AS E_PLAN
 FROM FullFixedBase_Rejoiners
 )
 
-Select * From FinalTable 
+--Select * From FinalTable 
+
+/*
+select distinct fixed_account,count(*)
+From FinalTable
+WHERE InvolChurner IS NOT NULL --and date_trunc('Month',Fixed_Month)<>date('2022-08-01')
+group by 1
+order by 2 desc
+*/
+
+--/*
+select distinct Fixed_Month,B_MIX,count(fixed_account) as NumUsers,sum(B_NumRGUs) as NumRGUs
+From FinalTable
+WHERE FixedChurnerType IS NOT NULL
+group by 1,2
+order by 1,2
+--*/
+--select * From FinalTable --limit 10
+--order by 2,1
