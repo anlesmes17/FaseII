@@ -221,12 +221,13 @@ WHERE Submotivo IS NOT NULL
 
 
 ,FIRSTCUSTRECORD AS (
-    SELECT DATE_TRUNC('MONTH', Date_add('MONTH',1, DATE(dt))) AS MES, act_acct_cd AS Account, min(date(dt)) AS FirstCustRecord,date_add('day',-1,min(date(dt))) as PrevFirstCustRecord
+    SELECT DATE_TRUNC('MONTH',date(dt)) AS MES, act_acct_cd AS Account, min(date(dt)) AS FirstCustRecord,date_add('day',-1,min(date(dt))) as PrevFirstCustRecord
     FROM UsefulFields 
-    WHERE CAST(fi_outst_age as INT) <= 90 
+    WHERE CAST(fi_outst_age as INT) < 90 and CAST(fi_outst_age as INT) > 40 
     --WHERE date(dt) = date_trunc('MONTH', DATE(dt)) + interval '1' MONTH - interval '1' day
     Group by 1,2
 )
+
 ,LastCustRecord as(
     SELECT  DATE_TRUNC('MONTH', DATE(dt)) AS MES, act_acct_cd AS Account, max(date(dt)) as LastCustRecord,date_add('day',-1,max(date(dt))) as PrevLastCustRecord,date_add('day',-2,max(date(dt))) as PrevLastCustRecord2
     FROM UsefulFields 
@@ -234,33 +235,43 @@ WHERE Submotivo IS NOT NULL
    Group by 1,2
    order by 1,2
 )
+
  ,NO_OVERDUE AS(
- SELECT DISTINCT DATE_TRUNC('MONTH', Date_add('MONTH',1, DATE(dt))) AS MES, act_acct_cd AS Account, fi_outst_age
+ SELECT DISTINCT DATE_TRUNC('MONTH',date(dt)) AS MES, act_acct_cd AS Account, fi_outst_age
  FROM UsefulFields t
  INNER JOIN FIRSTCUSTRECORD  r ON r.account = t.act_acct_cd
- WHERE CAST(fi_outst_age as INT) <= 90 
- and (date(t.dt) = r.FirstCustRecord or date(t.dt)=r.PrevFirstCustRecord)
+ WHERE CAST(fi_outst_age as INT) < 90 and CAST(fi_outst_age as INT) > 50 
+ and (date(t.dt) = r.FirstCustRecord or date(t.dt)=r.PrevFirstCustRecord
+ )
  GROUP BY 1, 2, 3
 )
+
+
  ,OVERDUELASTDAY AS(
  SELECT DISTINCT DATE_TRUNC('MONTH', DATE(dt)) AS MES, act_acct_cd AS Account, fi_outst_age,
- (date_diff('DAY', DATE(dt), MaxInst)) as ChurnTenureDays
+ (date_diff('DAY',MaxInst,DATE(dt))) as ChurnTenureDays
  FROM UsefulFields t
  INNER JOIN LastCustRecord r ON date(t.dt) = r.LastCustRecord and 
  r.account = t.act_acct_cd
- WHERE (date(t.dt)=r.LastCustRecord or date(t.dt)=r.PrevLastCustRecord or date(t.dt)=r.PrevLastCustRecord2)
- and CAST(fi_outst_age AS INTEGER) >= 90
+ WHERE (date(t.dt)=r.LastCustRecord or date(t.dt)=r.PrevLastCustRecord --or date(t.dt)=r.PrevLastCustRecord2
+ )
+ and CAST(fi_outst_age AS INTEGER) >= 90 and CAST(fi_outst_age AS INTEGER) < 180
  GROUP BY 1, 2, 3, 4
  )
+--Select * From NO_OVERDUE
+--where Account='842641'
+--order by 1
+ 
  ,INVOLUNTARYNETCHURNERS AS(
  SELECT DISTINCT n.MES AS Month, n. account, l.ChurnTenureDays
  FROM NO_OVERDUE n INNER JOIN OVERDUELASTDAY l ON n.account = l.account and n.MES = l.MES
-)
+ )
+
 ,InvoluntaryChurners AS(
 SELECT DISTINCT i.Month, i.Account AS ChurnAccount, i.ChurnTenureDays
 ,CASE WHEN i.Account IS NOT NULL THEN '2. Fixed Involuntary Churner' END AS FixedChurnerType
 FROM INVOLUNTARYNETCHURNERS i left join usefulfields f on i.account=f.act_acct_cd and i.month=date_trunc('month',date(f.dt))
-where last_overdue>=90
+where last_overdue>=90 and CAST(last_overdue AS INTEGER) < 180
 GROUP BY 1, Account,4, ChurnTenureDays
 )
 
@@ -320,6 +331,4 @@ CONCAT(coalesce(B_VO_nm,'-'),coalesce(B_TV_nm,'-'),coalesce(B_BB_nm,'-')) AS B_P
 ,CONCAT(coalesce(E_VO_nm,'-'),coalesce(E_TV_nm,'-'),coalesce(E_BB_nm,'-')) AS E_PLAN
 FROM FullFixedBase_Rejoiners
 )
-Select * From FinalTable
-WHERE Fixed_Account='1295740'
-order by Fixed_Month 
+select * From FinalTable
