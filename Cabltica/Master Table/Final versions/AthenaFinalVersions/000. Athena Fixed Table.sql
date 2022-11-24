@@ -268,7 +268,7 @@ WHERE ActiveBOM=1 and (ActiveEOM=0 or ActiveEOM is null)
 
 ,Deinstallations as(
 Select distinct date_trunc('Month',order_start_date) as D_Month, account_name From "db-stage-dev"."so_cr"
-WHERE order_type = 'DESINSTALACION' AND (order_status <> 'CANCELADA' OR order_status <> 'ANULADA') and command_id not like  '%MOROSIDAD%'
+WHERE order_type = 'DESINSTALACION' AND (order_status = 'FINALIZADA') and command_id not like  '%MOROSIDAD%'
 )
 
 ,ChurnDeinstallations as(
