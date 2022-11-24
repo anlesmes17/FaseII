@@ -6,7 +6,6 @@ Parameters as(
 Select 90 as InvoluntaryChurnDays
 )
 
-
 ,UsefulFields AS(
 SELECT DISTINCT DATE_TRUNC ('Month' , cast(dt as date)) AS Month,dt, act_acct_cd, pd_vo_prod_nm, 
 PD_TV_PROD_nm, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE, first_value (ACT_ACCT_INST_DT) over(PARTITION  BY act_acct_cd ORDER BY dt ASC) AS MinInst,
@@ -50,14 +49,6 @@ RGU_VO as B_RGU_VO, RGU_TV as B_RGU_TV, RGU_BB AS B_RGU_BB, fi_outst_age as B_Ov
 
 mrcVO as B_VO_MRC, mrcBB as B_BB_MRC, mrcTV as B_TV_MRC, avgmrc as B_AVG_MRC,
     BILL AS B_BILL_AMT,ACT_CUST_STRT_DT AS B_ACT_CUST_STRT_DT,
-
---CASE 
---WHEN (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 0 AND RGU_BB = 1) 
---THEN '1P'
---WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 1) OR (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 1) 
---THEN '2P'
---WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 1) THEN '3P' END AS B_Bundle_Type,
-
 CASE 
 WHEN (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 0) THEN 'VO'
 WHEN (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 0) THEN 'TV'
@@ -71,41 +62,17 @@ CASE WHEN RGU_BB= 1 THEN act_acct_cd ELSE NULL END As BB_RGU_BOM,
 CASE WHEN RGU_TV= 1 THEN act_acct_cd ELSE NULL END As TV_RGU_BOM,
 CASE WHEN RGU_VO= 1 THEN act_acct_cd ELSE NULL END As VO_RGU_BOM
     
---CASE WHEN (RGU_BB = 1 AND RGU_TV = 0 AND RGU_VO = 0) OR  (RGU_BB = 0 AND RGU_TV = 1 AND RGU_VO = 0) OR (RGU_BB = 0 AND RGU_TV = 0 AND RGU_VO = 1)  THEN '1P'
---    WHEN (RGU_BB = 1 AND RGU_TV = 1 AND RGU_VO = 0) OR (RGU_BB = 1 AND RGU_TV = 0 AND RGU_VO = 1) OR (RGU_BB = 0 AND RGU_TV = 1 AND RGU_VO = 1) THEN '2P'
---    WHEN (RGU_BB = 1 AND RGU_TV = 1 AND RGU_VO = 1) THEN '3P' END AS B_MixCode_Adj
-    
-    
     FROM UsefulFields c 
-    --WHERE date(dt) = DATE_TRUNC('Month', date(dt))
-    --LEFT JOIN "db-analytics-dev"."dna_fixed_cr"  on c.act_acct_cd on --Tipo tecnologia es bb,tv,vo y/o _media o _tech  ON PD_BB_PROD_nm=ActivoInternet
     WHERE (date(dt) = DATE_TRUNC('Month', date(dt)) and DATE_TRUNC('Month', date(dt))<>date('2022-10-01')) OR dt='2022-10-07'
 )
 
-
-/*
-,FinalCustomerBase_BOM AS( 
-    SELECT *,
-    CASE 
-    WHEN B_Tech_Type like '%FTTH%' then 'FTTH'
-    ELSE 'HFC' END AS B_TechAdj,
-    CASE
-    WHEN B_Tenure <=6 THEN 'Early Tenure'
-    WHEN (B_Tenure >6 and b_tenure <= 12)  THEN 'Mid Tenure'
-    when b_tenure > 12 then 'Late Tenure'
-    ELSE NULL END AS B_FixedTenureSegment
-    FROM CustomerBase_BOM 
-)*/
---select distinct month, fixed_rejoiner, count(distinct AccountBOM) from FinalCustomerBase_BOM where b_date = '2022-09-02' group by 1,2 order by 1,2
 
 ,CustomerBase_EOM AS(
 SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS Month, dt as E_Date, act_acct_cd as AccountEOM, act_contact_phone_1 as E_Phone, pd_vo_prod_nm as E_VO_nm, 
     pd_tv_prod_nm as E_TV_nm, pd_bb_prod_nm as E_BB_nm, RGU_VO as E_RGU_VO, RGU_TV as E_RGU_TV, RGU_BB AS E_RGU_BB, fi_outst_age as E_Overdue, 
     TechFlag as E_TechFlag, C_CUST_AGE as E_Tenure, MinInst as E_MinInst,MaxInst as E_MaxInst, MIX AS E_MIX,
     (RGU_VO + RGU_TV + RGU_BB) AS E_NumRGUs, MORA AS E_MORA, mrcVO AS E_VO_MRC, mrcBB as E_BB_MRC, mrcTV as E_TV_MRC, avgmrc as E_AVG_MRC, BILL AS E_BILL_AMT,ACT_CUST_STRT_DT AS E_ACT_CUST_STRT_DT,
---    CASE WHEN (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 0 AND RGU_BB = 1) THEN '1P'
---    WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 0) OR (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 1) OR (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 1) THEN '2P'
---    WHEN (RGU_VO = 1 AND RGU_TV = 1 AND RGU_BB = 1) THEN '3P' END AS E_Bundle_Type,
+
     CASE WHEN (RGU_VO = 1 AND RGU_TV = 0 AND RGU_BB = 0) THEN 'VO'
     WHEN (RGU_VO = 0 AND RGU_TV = 1 AND RGU_BB = 0) THEN 'TV'
     WHEN (RGU_VO = 0 AND RGU_TV = 0 AND RGU_BB = 1) THEN 'BB'
@@ -116,31 +83,10 @@ SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS 
      CASE WHEN RGU_BB= 1 THEN act_acct_cd ELSE NULL END As BB_RGU_EOM,
     CASE WHEN RGU_TV= 1 THEN act_acct_cd ELSE NULL END As TV_RGU_EOM,
     CASE WHEN RGU_VO= 1 THEN act_acct_cd ELSE NULL END As VO_RGU_EOM
-    --CASE WHEN (RGU_BB = 1 AND RGU_TV = 0 AND RGU_VO = 0) OR  (RGU_BB = 0 AND RGU_TV = 1 AND RGU_VO = 0) OR (RGU_BB = 0 AND RGU_TV = 0 AND RGU_VO = 1)  THEN '1P'
-    --WHEN (RGU_BB = 1 AND RGU_TV = 1 AND RGU_VO = 0) OR (RGU_BB = 1 AND RGU_TV = 0 AND RGU_VO = 1) OR (RGU_BB = 0 AND RGU_TV = 1 AND RGU_VO = 1) THEN '2P'
-    --WHEN (RGU_BB = 1 AND RGU_TV = 1 AND RGU_VO = 1) THEN '3P' END AS E_MixCode_Adj
     
     FROM UsefulFields c 
     WHERE (date(dt) = DATE_TRUNC('Month', date(dt)) and DATE_TRUNC('Month', date(dt))<>date('2022-10-01')) OR dt='2022-10-07'
-    
-    --LEFT JOIN `gcp-bia-tmps-vtr-dev-01.gcp_temp_cr_dev_01.2022-01-13_CR_CATALOGUE_TV_INTERNET_2021_T` ON PD_BB_PROD_nm=ActivoInternet
-    --WHERE date(dt) = DATE_TRUNC('month', date(dt))
 )
-
-/*
-,FinalCustomerBase_EOM AS(
-    SELECT *,
-    CASE 
-    WHEN e_Tech_Type like '%FTTH%' then 'FTTH'
-    ELSE 'HFC' END AS E_TechAdj, 
-    CASE
-    WHEN E_Tenure <=6 THEN 'Early Tenure'
-     WHEN (E_Tenure >6 and e_tenure <= 12)  THEN 'Mid Tenure'
-    when e_tenure > 12 then 'Late Tenure'
-    ELSE NULL END AS E_FixedTenureSegment
-    FROM CustomerBase_EOM 
-)
-*/
 
 ,FixedCustomerBase AS(
     SELECT DISTINCT
@@ -173,8 +119,6 @@ SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS 
  AND date_diff('month',E_MaxInst,cast(Fixed_Month as timestamp))<=1
  THEN '04. Come Back to Life'
  WHEN (B_NumRGUs IS NULL AND E_NumRGUs > 0 AND date_diff('month',E_ACT_CUST_STRT_DT,cast(Fixed_Month as timestamp))<=1)
- 
- --DATE_TRUNC ('MONTH', E_ACT_CUST_STRT_DT) = Fixed_Month) 
  THEN '05. New Customer'
  WHEN ActiveBOM = 1 AND ActiveEOM = 0 THEN '06. Loss'
  WHEN (B_NumRGUs IS NULL AND E_NumRGUs > 0 AND DATE_TRUNC ('MONTH', E_ACT_CUST_STRT_DT) <> Fixed_Month) Then '07. Missing Customer'
@@ -182,7 +126,6 @@ SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS 
  E_RGU_BB - B_RGU_BB as DIF_RGU_BB , E_RGU_TV - B_RGU_TV as DIF_RGU_TV , E_RGU_VO - B_RGU_VO as DIF_RGU_VO , E_NumRGUs - B_NumRGUs as DIF_TOTAL_RGU
  FROM FixedCustomerBase f
 )
-
 
 
 ,SPINMOVEMENTBASE AS (
@@ -210,54 +153,6 @@ SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS 
 
 
 --------------------------------------- Fixed Churn Flags --------------------------------------------------------
-------------------------------------------Voluntary & Involuntary-------------------------------------------------------------
-/*,MAX_SO_CHURN AS(
- SELECT DISTINCT account_name AS CONTRATOSO, DATE_TRUNC('Month',MAX(order_start_date)) as DeinstallationMonth, MAX(order_start_date) AS FECHA_CHURN
- FROM "db-stage-dev"."so_cr"
- WHERE
-  order_type = 'DESINSTALACION' 
-  AND (order_status <> 'CANCELADA' OR order_status <> 'ANULADA')
- AND order_start_date IS NOT NULL
- GROUP BY 1
-)
-
-,CHURNERSSO AS(
-  SELECT DISTINCT account_name AS CONTRATOSO, DATE_TRUNC('Month',order_start_date) as DeinstallationMonth,
-  order_start_date as DeinstallationDate,
-  CASE WHEN command_id like '%MOROSIDAD%' THEN 'Involuntary'
-  WHEN command_id not like  '%MOROSIDAD%' THEN 'Voluntary'
-  END AS Submotivo
- FROM "db-stage-dev"."so_cr" t
- INNER JOIN MAX_SO_CHURN m on account_name = m.contratoso and order_start_date = fecha_churn
- WHERE
-  order_type = 'DESINSTALACION'
-  AND (order_status <> 'CANCELADA' OR order_status <> 'ANULADA')
- AND order_start_date IS NOT NULL
-)
-
-,MaximaFecha as(
-  select distinct  act_acct_cd, max(dt) as MaxFecha FROM "db-analytics-dev"."dna_fixed_cr"
-  where act_acct_stat='ACTIVO'
-  group by 1
-)
-
-,ChurnersJoin as(
-select Distinct f.dt,f.act_acct_cd,Submotivo,DeinstallationMonth,DeinstallationDate,MaxFecha 
-FROM "db-analytics-dev"."dna_fixed_cr" f
-left join churnersso c on contratoso=f.act_acct_cd and date_trunc('Month',cast(dt as date))=DeinstallationMonth
-left join MaximaFecha m on f.act_acct_cd=m.act_acct_cd
-where f.act_acct_stat='ACTIVO'
-)
-
-,MaxFechaJoin as(
-select dt,DeinstallationMonth as DxMonth,act_acct_cd,
-CASE WHEN date_diff('month',DeinstallationMonth,cast(MaxFecha as timestamp))<=1 THEN Submotivo
-ELSE NULL END AS FixedChurnTypeFlag
-FROM Churnersjoin
-WHERE Submotivo IS NOT NULL
-)
-*/
-
 --------------------------------------------Voluntary
 
 ,InactiveUsers as(
@@ -268,7 +163,7 @@ WHERE ActiveBOM=1 and (ActiveEOM=0 or ActiveEOM is null)
 
 ,Deinstallations as(
 Select distinct date_trunc('Month',order_start_date) as D_Month, account_name From "db-stage-dev"."so_cr"
-WHERE order_type = 'DESINSTALACION' AND (order_status = 'FINALIZADA') and command_id not like  '%MOROSIDAD%'
+WHERE order_type = 'DESINSTALACION' AND (order_status <> 'CANCELADA' OR order_status <> 'ANULADA') 
 )
 
 ,ChurnDeinstallations as(
@@ -278,12 +173,6 @@ Else Null End as VolChurners
 From InactiveUsers f inner join Deinstallations b 
 ON account_name=Fixed_Account and date_diff('Month',D_Month,Fixed_month) <=1
 )
-/*
-select distinct Fixed_Month,VolChurners,count(distinct account_name)
-From ChurnDeinstallations
-group by 1,2
-order by 1,2
-*/
 
 --------------------------------------------Involunary
 
@@ -364,32 +253,20 @@ GROUP BY 1, Account,4, ChurnTenureDays
 
 ,AllChurners AS(
 SELECT f.*,b.* From ChurnDeinstallations f Full Outer Join FinalInvoluntaryChurners b
-ON D_Month=Month and ChurnAccount=Account_Name
+ON Fixed_Month=Month and ChurnAccount=Account_Name
 )
 ,FinalFixedChurners as(
 select 
-case when D_Month is not null THEN D_Month else Month End as ChurnMonth,
+case when Fixed_Month is not null THEN Fixed_Month else Month End as ChurnMonth,
 case when Fixed_Account is not null THEN Fixed_Account else ChurnAccount End as Churn_Account,
 case when VolChurners is not null THEN VolChurners else InvolChurner end as FixedChurnerType
 From AllChurners
 )
 
-
 ,ChurnersFixedTable as(
 select f.*,FixedChurnerType FROM SPINMOVEMENTBASE f left join FinalFixedChurners b
 on Fixed_Month=ChurnMonth and Fixed_Account=Churn_Account
 )
-
-
-/*
-,ChurnersFixedTable as(
-select f.*,FixedChurnTypeFlag FROM SPINMOVEMENTBASE f left join MaxFechaJoin b
-on Fixed_Month=date_trunc('Month',b.DxMonth) and Fixed_Account=b.act_acct_cd
-)
-*/
-
-
-
 
 
 --------------------------------------------------------------------------- Rejoiners -------------------------------------------------------------
@@ -421,45 +298,14 @@ THEN 1 ELSE 0 END AS Fixed_Rejoiner
 FROM ChurnersFixedTable f LEFT JOIN FixedRejoinerFebPopulation r ON f.Fixed_Account=r.Fixed_Account AND f.Fixed_Month=CAST(r.Month AS DATE)
 )
 ,FinalTable as(
-SELECT *,/*CASE
-WHEN FixedChurnTypeFlag is not null THEN b_NumRGUs
-WHEN MainMovement='Downsell' THEN (B_NumRGUs - E_NumRGUs)
-ELSE NULL END AS RGU_Churn,*/
+SELECT *,CASE
+WHEN FixedChurnerType is not null THEN b_NumRGUs
+WHEN MainMovement='03. Downsell' THEN (B_NumRGUs - E_NumRGUs)
+ELSE NULL END AS RGU_Churn,
+
 CONCAT(coalesce(B_VO_nm,'-'),coalesce(B_TV_nm,'-'),coalesce(B_BB_nm,'-')) AS B_PLAN
 ,CONCAT(coalesce(E_VO_nm,'-'),coalesce(E_TV_nm,'-'),coalesce(E_BB_nm,'-')) AS E_PLAN
 FROM FullFixedBase_Rejoiners
 )
 
---Select * From FinalTable 
-
-/*
-select distinct fixed_account,count(*)
-From FinalTable
-WHERE InvolChurner IS NOT NULL --and date_trunc('Month',Fixed_Month)<>date('2022-08-01')
-group by 1
-order by 2 desc
-*/
-
-,VolCheck as(
-Select *, 
-case when FixedChurnerType ='1. Fixed Voluntary Churner' THEN B_NumRGUs
-when  MainMovement='Downsell' and (B_NumRGUs - E_NumRGUs)>=1 THEN (B_NumRGUs - E_NumRGUs)
-Else null end as VoluntaryRGUchurn
-From FinalTable
-)
-select distinct Fixed_Month,count(fixed_account) as NumUsers,sum(VoluntaryRGUchurn) as NumRGUs
-FROM VolCheck
-WHERE VoluntaryRGUchurn is not null
-group by 1
-order by 1
-
-
-/*
-select distinct Fixed_Month,B_MIX,count(fixed_account) as NumUsers,sum(B_NumRGUs) as NumRGUs
-From FinalTable
-WHERE FixedChurnerType ='1. Fixed Voluntary Churner'
-group by 1,2
-order by 1,2
-*/
---select * From FinalTable --limit 10
---order by 2,1
+Select * From FinalTable
