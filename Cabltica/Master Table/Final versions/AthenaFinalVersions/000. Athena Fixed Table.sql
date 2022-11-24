@@ -268,7 +268,7 @@ WHERE ActiveBOM=1 and (ActiveEOM=0 or ActiveEOM is null)
 
 ,Deinstallations as(
 Select distinct date_trunc('Month',order_start_date) as D_Month, account_name From "db-stage-dev"."so_cr"
-WHERE order_type = 'DESINSTALACION' AND (order_status <> 'CANCELADA' OR order_status <> 'ANULADA') 
+WHERE order_type = 'DESINSTALACION' AND (order_status <> 'CANCELADA' OR order_status <> 'ANULADA') and command_id not like  '%MOROSIDAD%'
 )
 
 ,ChurnDeinstallations as(
@@ -278,9 +278,12 @@ Else Null End as VolChurners
 From InactiveUsers f inner join Deinstallations b 
 ON account_name=Fixed_Account and date_diff('Month',D_Month,Fixed_month) <=1
 )
-
-
-
+/*
+select distinct Fixed_Month,VolChurners,count(distinct account_name)
+From ChurnDeinstallations
+group by 1,2
+order by 1,2
+*/
 
 --------------------------------------------Involunary
 
@@ -361,15 +364,16 @@ GROUP BY 1, Account,4, ChurnTenureDays
 
 ,AllChurners AS(
 SELECT f.*,b.* From ChurnDeinstallations f Full Outer Join FinalInvoluntaryChurners b
-ON Fixed_Month=Month and ChurnAccount=Account_Name
+ON D_Month=Month and ChurnAccount=Account_Name
 )
 ,FinalFixedChurners as(
 select 
-case when Fixed_Month is not null THEN Fixed_Month else Month End as ChurnMonth,
+case when D_Month is not null THEN D_Month else Month End as ChurnMonth,
 case when Fixed_Account is not null THEN Fixed_Account else ChurnAccount End as Churn_Account,
 case when VolChurners is not null THEN VolChurners else InvolChurner end as FixedChurnerType
 From AllChurners
 )
+
 
 ,ChurnersFixedTable as(
 select f.*,FixedChurnerType FROM SPINMOVEMENTBASE f left join FinalFixedChurners b
@@ -436,12 +440,26 @@ group by 1
 order by 2 desc
 */
 
---/*
+,VolCheck as(
+Select *, 
+case when FixedChurnerType ='1. Fixed Voluntary Churner' THEN B_NumRGUs
+when  MainMovement='Downsell' and (B_NumRGUs - E_NumRGUs)>=1 THEN (B_NumRGUs - E_NumRGUs)
+Else null end as VoluntaryRGUchurn
+From FinalTable
+)
+select distinct Fixed_Month,count(fixed_account) as NumUsers,sum(VoluntaryRGUchurn) as NumRGUs
+FROM VolCheck
+WHERE VoluntaryRGUchurn is not null
+group by 1
+order by 1
+
+
+/*
 select distinct Fixed_Month,B_MIX,count(fixed_account) as NumUsers,sum(B_NumRGUs) as NumRGUs
 From FinalTable
-WHERE FixedChurnerType IS NOT NULL
+WHERE FixedChurnerType ='1. Fixed Voluntary Churner'
 group by 1,2
 order by 1,2
---*/
+*/
 --select * From FinalTable --limit 10
 --order by 2,1
