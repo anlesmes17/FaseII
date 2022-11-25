@@ -5,18 +5,24 @@ SELECT DISTINCT * FROM "lla_cco_int_san"."cr_fmc_table"
 )
 
 ------------------------------------ One time and repeated callers --------------------------
-
+,dup_fix AS(
+SELECT *, row_number() OVER (PARTITION BY account_id, cast(interaction_start_time AS DATE),interaction_purpose_descrip ORDER BY interaction_start_time DESC) AS row_num
+FROM "db-stage-dev"."interactions_cabletica"
+WHERE (account_type='RESIDENCIAL' or account_type='PROGRAMA HOGARES CONECTADOS') 
+AND date_trunc('Month',interaction_start_time)>=DATE('2022-01-01')-- and interaction_status <> 'ANULADA'
+)
 ,Interactions_Fields as(
   select distinct *,date_trunc('Month',interaction_start_time)  as month,account_id AS ContratoInteractions
-  From "interactions_cabletica"
+  From (select * from dup_fix where row_num=1)
 )
 
 ,Last_Interaction as (
   select account_id AS last_account,
   first_value(dt) over(partition by account_id,date_trunc('Month',date(dt)) order by dt desc) as last_interaction_date
-  From "interactions_cabletica"
+  From (select * from dup_fix where row_num=1)
   WHERE (account_type='RESIDENCIAL' or account_type='PROGRAMA HOGARES CONECTADOS') and date_trunc('Month',interaction_start_time)>=date('2022-01-01') and interaction_status <> 'ANULADA'
-        AND interaction_purpose_descrip NOT IN ('VENTANILLA','DESINSTALACION')
+        AND interaction_purpose_descrip NOT IN ('VENTANILLA','DESINSTALACION','CORPORATIVO','VENCIMIENTO PROMOCION','*NO DEFINIDO*','SUSPENSIONES',
+'CREACION DE FACTURA','VENTAS')
 )
 
 ,Join_last_interaction as(
@@ -51,29 +57,42 @@ SELECT DISTINCT * FROM "lla_cco_int_san"."cr_fmc_table"
 
 ,Tiquetes AS(
 SELECT account_id AS Contrato, interaction_start_time AS Fecha_Tiquete, Date_Trunc('Month',date(interaction_start_time)) AS Mes_Tiquete, Interaction_id
-    FROM "interactions_cabletica"
-    WHERE (account_type='RESIDENCIAL' or account_type='PROGRAMA HOGARES CONECTADOS') and date_trunc('Month',interaction_start_time)>=date('2022-01-01') and interaction_status <> 'ANULADA'
+    FROM (select * from dup_fix where row_num=1)
+    WHERE (account_type='RESIDENCIAL' or account_type='PROGRAMA HOGARES CONECTADOS') and interaction_status <> 'ANULADA'
 and interaction_purpose_descrip IN (
-'AVERIAS',
-'SIN SERVICIO INTERNET',
-'INTERRUPCION CONSTANT SERVICIO',
-'SIN SEÑAL',
-'SIN SERVICIO TV',
-'SIN SEÑAL UNO/VARIOS CH DVB',
-'PROB CABLE MODEM',
-'MENSAJE ERROR DVB',
-'PROB STB DVB',
-'MENSAJE ERROR',
-'CALIDAD SEÑAL',
-'SIN SERVICIO TODOS LOS CH DVB',
-'SIN SERVICIO TELEFONIA',
-'AVERIA',
-'PROB STB',
-'PROB VELOCIDAD',
-'OTRO INTERNET',
-'FECHA Y HORA DE VISITA WEB',
-'CONTROL REMOTO',
-'PROB STB DIG'
+    'AVERIAS',
+    'SIN SERVICIO INTERNET',
+    'INTERRUPCION CONSTANT SERVICIO',
+    'EQUIPO INTEGRADO',
+    'PROB VELOCIDAD',
+    'SIN SEÑAL',
+    'OTRO INTERNET',
+    'CONTROL REMOTO',
+    'SIN SERVICIO TV',
+    'PROB STB DIG',
+    'SIN SEÑAL UNO/VARIOS CH DVB',
+    'PROB CABLE MODEM',
+    'MENSAJE ERROR DVB',
+    'PROB STB DVB',
+    'MENSAJE ERROR',
+    'INTERNET/DIGITAL',
+    'CALIDAD SEÑAL',
+    'TV/INTERNET/DIGITAL',
+    'SIN SERVICIO TODOS LOS CH DVB',
+    'SIN SERVICIO TELEFONIA',
+    'CONTROL REMOTO DVB',
+    'AVERIA',
+    'PROB STB',
+    'SEÑAL LLUVIOSA/RAYAS TV',
+    'CONEXION',
+    'TV/INTERNET',
+    'FALTAN CH PARRILLA BASICA DVB',
+    'NIVELES SEÑAL INCORRECTOS INT.',
+    'TV/DIGITAL',
+    'SIN SEÑAL UNO/VARIOS CH',
+    'SIN SERVICIO INT',
+    'PROB ROUTER CT',
+    'CALIDAD SEÑAL DVB'
 )
 )
 
@@ -147,7 +166,7 @@ Date_add('Day',-60,MAX(date(FECHA_TIQUETE))) AS MAX_APERTURA_60D
 
 ,FailedInstallations AS (
     SELECT DISTINCT DATE_TRUNC('Month',interaction_start_time) AS InstallationMonth, account_id AS ContratoInstallations
-    FROM "interactions_cabletica"
+    FROM (select * from dup_fix where row_num=1)
     WHERE
         interaction_status IN ('CANCELADA','ANULADA')
         --AND TIPO_ATENCION = "TR" -- con esto marcamos que es un truck roll
@@ -163,29 +182,42 @@ Date_add('Day',-60,MAX(date(FECHA_TIQUETE))) AS MAX_APERTURA_60D
 
 ,NumTiquetes AS(
     SELECT account_id AS Contrato, Date_trunc('Month',interaction_start_time) AS TiquetMonth, Count(Distinct interaction_id) AS NumTechTickets
-    FROM "interactions_cabletica"
+    FROM (select * from dup_fix where row_num=1)
     WHERE 
         interaction_purpose_descrip IN (
-'AVERIAS',
-'SIN SERVICIO INTERNET',
-'INTERRUPCION CONSTANT SERVICIO',
-'SIN SEÑAL',
-'SIN SERVICIO TV',
-'SIN SEÑAL UNO/VARIOS CH DVB',
-'PROB CABLE MODEM',
-'MENSAJE ERROR DVB',
-'PROB STB DVB',
-'MENSAJE ERROR',
-'CALIDAD SEÑAL',
-'SIN SERVICIO TODOS LOS CH DVB',
-'SIN SERVICIO TELEFONIA',
-'AVERIA',
-'PROB STB',
-'PROB VELOCIDAD',
-'OTRO INTERNET',
-'FECHA Y HORA DE VISITA WEB',
-'CONTROL REMOTO',
-'PROB STB DIG'
+    'AVERIAS',
+    'SIN SERVICIO INTERNET',
+    'INTERRUPCION CONSTANT SERVICIO',
+    'EQUIPO INTEGRADO',
+    'PROB VELOCIDAD',
+    'SIN SEÑAL',
+    'OTRO INTERNET',
+    'CONTROL REMOTO',
+    'SIN SERVICIO TV',
+    'PROB STB DIG',
+    'SIN SEÑAL UNO/VARIOS CH DVB',
+    'PROB CABLE MODEM',
+    'MENSAJE ERROR DVB',
+    'PROB STB DVB',
+    'MENSAJE ERROR',
+    'INTERNET/DIGITAL',
+    'CALIDAD SEÑAL',
+    'TV/INTERNET/DIGITAL',
+    'SIN SERVICIO TODOS LOS CH DVB',
+    'SIN SERVICIO TELEFONIA',
+    'CONTROL REMOTO DVB',
+    'AVERIA',
+    'PROB STB',
+    'SEÑAL LLUVIOSA/RAYAS TV',
+    'CONEXION',
+    'TV/INTERNET',
+    'FALTAN CH PARRILLA BASICA DVB',
+    'NIVELES SEÑAL INCORRECTOS INT.',
+    'TV/DIGITAL',
+    'SIN SEÑAL UNO/VARIOS CH',
+    'SIN SERVICIO INT',
+    'PROB ROUTER CT',
+    'CALIDAD SEÑAL DVB'
 )
     GROUP BY 1,2
 )
