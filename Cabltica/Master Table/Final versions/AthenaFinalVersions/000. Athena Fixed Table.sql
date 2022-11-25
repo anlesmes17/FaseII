@@ -171,7 +171,7 @@ select f.*,b.*, case
 when Account_Name is not null THEN '1. Fixed Voluntary Churner'
 Else Null End as VolChurners
 From InactiveUsers f inner join Deinstallations b 
-ON account_name=Fixed_Account and date_diff('Month',D_Month,Fixed_month) <=1
+ON account_name=Fixed_Account and date_diff('Month',D_Month,Fixed_month) <=2
 )
 
 --------------------------------------------Involunary
@@ -253,7 +253,7 @@ GROUP BY 1, Account,4, ChurnTenureDays
 
 ,AllChurners AS(
 SELECT f.*,b.* From ChurnDeinstallations f Full Outer Join FinalInvoluntaryChurners b
-ON Fixed_Month=Month and ChurnAccount=Account_Name
+ON D_Month=Month and ChurnAccount=Account_Name
 )
 ,FinalFixedChurners as(
 select 
@@ -308,4 +308,28 @@ CONCAT(coalesce(B_VO_nm,'-'),coalesce(B_TV_nm,'-'),coalesce(B_BB_nm,'-')) AS B_P
 FROM FullFixedBase_Rejoiners
 )
 
-Select * From FinalTable
+--Select * From FinalTable
+--/*
+Select distinct Fixed_Month,FixedChurnerType,sum(RGU_Churn) From FinalTable
+group by 1,2
+order by 1,2
+--*/
+--WHERE Fixed_Month=date('2022-10-01') and FixedChurnerType is not null
+
+/*
+select distinct fixed_account,count(*)
+From FinalTable
+WHERE InvolChurner IS NOT NULL --and date_trunc('Month',Fixed_Month)<>date('2022-08-01')
+group by 1
+order by 2 desc
+*/
+
+/*
+select distinct Fixed_Month,B_MIX,count(fixed_account) as NumUsers,sum(B_NumRGUs) as NumRGUs
+From FinalTable
+WHERE FixedChurnerType='2. Fixed Involuntary Churner'
+group by 1,2
+order by 1,2
+*/
+--select * From FinalTable --limit 10
+--order by 2,1
