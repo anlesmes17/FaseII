@@ -37,7 +37,7 @@ ELSE 'HFC' END AS TechFlag,
 first_value(fi_outst_age) over(partition by act_acct_cd,date_trunc('month',date(dt)) order by date(dt) desc) as Last_Overdue
 
 FROM "db-analytics-dev"."dna_fixed_cr"
-Where (act_cust_typ='RESIDENCIAL' or act_cust_typ='PROGRAMA HOGARES CONECTADOS') and act_acct_stat='ACTIVO'
+Where (act_cust_typ='RESIDENCIAL' or act_cust_typ='PROGRAMA HOGARES CONECTADOS') and (act_acct_stat='ACTIVO' or act_acct_stat='SUSPENDIDO')
 )
 
 
@@ -171,8 +171,7 @@ select f.*,b.*, case
 when Account_Name is not null THEN '1. Fixed Voluntary Churner'
 Else Null End as VolChurners
 From InactiveUsers f inner join Deinstallations b 
-ON account_name=Fixed_Account and date_diff('Month',D_Month,Fixed_month) <=2
-)
+ON account_name=Fixed_Account and date_diff('Month',D_Month,Fixed_month) <=1)
 
 --------------------------------------------Involunary
 
@@ -309,6 +308,8 @@ FROM FullFixedBase_Rejoiners
 )
 
 --Select * From FinalTable
+
+
 --/*
 Select distinct Fixed_Month,FixedChurnerType,sum(RGU_Churn) From FinalTable
 group by 1,2
