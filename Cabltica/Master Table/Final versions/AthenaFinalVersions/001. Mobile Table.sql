@@ -3,10 +3,10 @@
 WITH
 
 MobileUsefulFields as(
-Select distinct date_trunc('Month',cast(fecha_parque as date)) as Month, replace(ID_ABONADO,'.','') as ID_ABONADO,cast(Contrato as varchar) as FixedContract,Num_Telefono,Direccion_Correo,des_segmento_cliente,
+Select distinct date_trunc('Month',date_add('Month',1,date(fecha_parque))) as Month, replace(ID_ABONADO,'.','') as ID_ABONADO,cast(Contrato as varchar) as FixedContract,Num_Telefono,Direccion_Correo,des_segmento_cliente,
 case 
-when (renta like '%#%' or renta like '%/%') then null 
-else cast(replace(renta,',','.') as double) end as renta
+when (renta like '%#%' or renta like '%/%'or renta like 'NULL') then null -- Esta linea sirve para eliminar valores errones de renta 
+else cast(replace(coalesce(renta,'0'),',','.') as double) end as renta
 
 ,CASE WHEN fch_activacion='#N/D' OR fch_activacion='SAMSUNG GALAXY A03 CORE 32GB NEGRO' OR fch_activacion='IPHONE 12 PRO MAX GRAFITO 256GB' 
 OR fch_activacion='ARTICULO SIN EQUIPO' 
@@ -96,18 +96,27 @@ SELECT *, '1. Mobile Churner' as MobileChurnFlag
 FROM MainMovements
 WHERE Mobile_ActiveBOM=1 AND Mobile_ActiveEOM=0
 )
+,Movements as(
+Select *, CASE
+WHEN TIPO_BAJA='ALTA/MIGRACION' THEN '2. Mobile Involuntary Churner'
+WHEN TIPO_BAJA='BAJA INVOLUNTARIA' THEN '2. Mobile Involuntary Churner'
+WHEN TIPO_BAJA='BAJA PORTABILIDAD' THEN '2. Mobile Involuntary Churner'
+WHEN TIPO_BAJA='BAJA VOLUNTARIA' THEN '1. Mobile Voluntary Churner'
+ELSE NULL END AS mobile_churn_type
+From "cr_ext_mov_temp"
+)
 
 ,ChurnersMovements as(
-SELECT M.*,TIPO_BAJA as MobileChurnType
-FROM MobileChurners m LEFT JOIN "cr_ext_mov_temp" 
-ON Mobile_Account=cast(ID_Abonado as varchar) AND Date_trunc('Month',Mobile_Month)=Date_TRUNC('Month',cast(dt as date))
+SELECT M.*,mobile_churn_type
+FROM MobileChurners m LEFT JOIN Movements
+ON Mobile_Account=cast(ID_Abonado as varchar) AND Date_trunc('Month',Mobile_Month)=Date_TRUNC('Month',date(dt))
 )
 
 ,CustomerBaseWithChurn AS (
 SELECT DISTINCT m.*,
-case when mobilechurnflag is not null then MobileChurnFlag
-else '2. Mobile NonChurner' end as MobileChurnFlag, 
-c.MobileChurnType
+case when mobile_churn_type is not null then mobile_churn_type
+else '3. Mobile NonChurner' end as mobile_churn_flag, 
+c.mobile_churn_type
 FROM MainMovements m LEFT JOIN ChurnersMovements c ON m.Mobile_Account=c.Mobile_Account 
 and c.Mobile_Month=
 m.Mobile_Month
