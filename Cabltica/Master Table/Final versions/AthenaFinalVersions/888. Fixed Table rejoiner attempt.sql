@@ -32,12 +32,12 @@ WHEN PD_VO_PROD_nm IS NULL AND PD_BB_PROD_nm IS NULL AND PD_TV_PROD_nm IS NULL T
 ELSE '1P' END AS MIX, pd_bb_tech,
 
 CASE 
-WHEN pd_bb_prod_nm LIKE '%FTTH%' OR pd_tv_prod_nm ='NextGen TV' THEN 'FTTH'
+WHEN pd_bb_prod_nm LIKE '%FTTH%' OR (pd_tv_prod_nm='NextGen TV' and pd_bb_prod_nm is null) THEN 'FTTH'
 ELSE 'HFC' END AS TechFlag,
 first_value(fi_outst_age) over(partition by act_acct_cd,date_trunc('month',date(dt)) order by date(dt) desc) as Last_Overdue
 
 FROM "db-analytics-dev"."dna_fixed_cr"
-Where (act_cust_typ='RESIDENCIAL' or act_cust_typ='PROGRAMA HOGARES CONECTADOS') and act_acct_stat='ACTIVO'
+Where (act_cust_typ='RESIDENCIAL' or act_cust_typ='PROGRAMA HOGARES CONECTADOS') and (act_acct_stat='ACTIVO' or act_acct_stat='SUSPENDIDO')
 )
 
 
@@ -63,7 +63,7 @@ CASE WHEN RGU_TV= 1 THEN act_acct_cd ELSE NULL END As TV_RGU_BOM,
 CASE WHEN RGU_VO= 1 THEN act_acct_cd ELSE NULL END As VO_RGU_BOM
     
     FROM UsefulFields c 
-    WHERE (date(dt) = DATE_TRUNC('Month', date(dt)) and DATE_TRUNC('Month', date(dt))<>date('2022-10-01')) OR dt='2022-10-07'
+    WHERE (date(dt) = DATE_TRUNC('Month', date(dt)) and DATE_TRUNC('Month', date(dt))<>date('2022-10-01')) OR dt='2022-10-07' 
 )
 
 
@@ -86,6 +86,7 @@ SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS 
     
     FROM UsefulFields c 
     WHERE (date(dt) = DATE_TRUNC('Month', date(dt)) and DATE_TRUNC('Month', date(dt))<>date('2022-10-01')) OR dt='2022-10-07'
+    --and fi_outst_age <=90
 )
 
 ,FixedCustomerBase AS(
@@ -156,19 +157,23 @@ SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS 
 --------------------------------------------Voluntary
 
 ,InactiveUsers as(
-Select distinct Fixed_Month,Fixed_Account, '1. Fixed Voluntary Churner' as VolChurners
+Select distinct Fixed_Month,Fixed_Account
 From SPINMOVEMENTBASE
 WHERE ActiveBOM=1 and (ActiveEOM=0 or ActiveEOM is null) 
 )
-/*
+
+,Deinstallations as(
+Select distinct date_trunc('Month',order_start_date) as D_Month, account_name From "db-stage-dev"."so_cr"
+WHERE order_type = 'DESINSTALACION' AND (order_status <> 'CANCELADA' OR order_status <> 'ANULADA') 
+)
+
 ,ChurnDeinstallations as(
 select f.*,b.*, case
 when Account_Name is not null THEN '1. Fixed Voluntary Churner'
 Else Null End as VolChurners
 From InactiveUsers f inner join Deinstallations b 
-ON account_name=Fixed_Account and date_diff('Month',D_Month,Fixed_month) <=1
-)
-*/
+ON account_name=Fixed_Account and date_diff('Month',D_Month,Fixed_month) <=1)
+
 --------------------------------------------Involunary
 
 ,mora_error as(
@@ -180,18 +185,24 @@ select distinct month, dt, act_acct_cd,FI_OUTST_AGE as mora, maxinst
 ,lag(fi_outst_age) over(partition by act_acct_cd order by dt) as prev_mora
 FROM UsefulFields 
 )
-order by act_acct_cd,dt
+--order by act_acct_cd,dt
 )
 ,mora_arreglada as(
 select distinct *
 ,case when mora_salto=1 then prev_mora+1 
-when mora is null and next_mora=prev_mora+2 then prev_mora+1 
+when mora is null and next_mora=prev_mora+2 then prev_mora+1
+when prev_mora is null and next_mora is null then null
 else mora end as mora_fix
 from mora_error
-order by 3,2
+--order by 3,2
 )
-
-
+/*
+select *
+From mora_arreglada
+where act_acct_cd='1167558'
+--group by 1,2
+order by act_acct_cd --1,2
+*/
 ,FIRSTCUSTRECORD AS (
     SELECT DATE_TRUNC('MONTH',date(dt)) AS MES, act_acct_cd AS Account, min(date(dt)) AS FirstCustRecord
     FROM mora_arreglada
@@ -205,7 +216,7 @@ order by 3,2
     FROM mora_arreglada
       --WHERE DATE(LOAD_dt) = date_trunc('MONTH', DATE(LOAD_dt)) + interval '1' MONTH - interval '1' day
    Group by 1,2
-   order by 1,2
+   --order by 1,2
 )
 
  ,NO_OVERDUE AS(
@@ -247,8 +258,8 @@ GROUP BY 1, Account,4, ChurnTenureDays
 )
 
 ,AllChurners AS(
-SELECT f.*,b.* From InactiveUsers f Full Outer Join FinalInvoluntaryChurners b
-ON Fixed_Month=Month and ChurnAccount=Fixed_Account
+SELECT f.*,b.* From ChurnDeinstallations f Full Outer Join FinalInvoluntaryChurners b
+ON D_Month=Month and ChurnAccount=Account_Name
 )
 ,FinalFixedChurners as(
 select 
@@ -262,9 +273,14 @@ From AllChurners
 select f.*,FixedChurnerType FROM SPINMOVEMENTBASE f left join FinalFixedChurners b
 on Fixed_Month=ChurnMonth and Fixed_Account=Churn_Account
 )
-
-
+/*
+select * From churnersfixedtable
+where fixed_account='1038583'
+order by fixed_month
+*/
 --------------------------------------------------------------------------- Rejoiners -------------------------------------------------------------
+
+/*
 ,InactiveUsersMonth AS (
 SELECT DISTINCT Fixed_Month AS ExitMonth, Fixed_Account,DATE_ADD('MONTH', 1, Fixed_Month) AS RejoinerMonth 
 FROM FixedCustomerBase 
@@ -275,23 +291,52 @@ WHERE ActiveBOM=1 AND ActiveEOM=0
 SELECT f.*,RejoinerMonth
 ,CASE WHEN i.Fixed_Account IS NOT NULL THEN 1 ELSE 0 END AS RejoinerPopFlag
 ------ Variabilizar
-,CASE WHEN RejoinerMonth>=date('2022-05-01') AND RejoinerMonth<=DATE_ADD('MONTH', 1, date('2022-05-01') ) THEN 1 ELSE 0 END AS Fixed_PR
+,CASE WHEN RejoinerMonth>=date('2022-10-01') AND RejoinerMonth<=DATE_ADD('MONTH', 1, date('2022-10-01') ) THEN 1 ELSE 0 END AS Fixed_PR
 FROM FixedCustomerBase f LEFT JOIN InactiveUsersMonth i ON f.Fixed_Account=i.Fixed_Account AND Fixed_Month=ExitMonth
 )
 ,FixedRejoinerFebPopulation AS(
-SELECT DISTINCT Fixed_Month,RejoinerPopFlag,Fixed_PR,Fixed_Account,date('2022-05-01') AS Month
+SELECT DISTINCT Fixed_Month,RejoinerPopFlag,Fixed_PR,Fixed_Account,date('2022-10-01') AS Month
 FROM RejoinersPopulation
 WHERE RejoinerPopFlag=1
 AND Fixed_PR=1
-AND Fixed_Month<>date('2022-05-01')
+AND Fixed_Month<>date('2022-10-01')
 GROUP BY 1,2,3,4
 )
 ,FullFixedBase_Rejoiners AS(
 SELECT DISTINCT f.*,Fixed_PR
-,CASE WHEN Fixed_PR=1 AND MainMovement='Come Back to Life'
+,CASE WHEN Fixed_PR=1 AND MainMovement='04. Come Back to Life'
 THEN 1 ELSE 0 END AS Fixed_Rejoiner
 FROM ChurnersFixedTable f LEFT JOIN FixedRejoinerFebPopulation r ON f.Fixed_Account=r.Fixed_Account AND f.Fixed_Month=CAST(r.Month AS DATE)
 )
+*/
+
+,Inactive_Users as(
+Select Distinct Fixed_Month as exit_month, fixed_account as exit_account,FixedChurnerType,date_add('month', 1, Fixed_Month) AS rejoiner_month
+From ChurnersFixedTable
+Where FixedChurnerType is not null
+)
+
+,mora_inactive_users as(
+select distinct month,mora_fix,act_acct_cd From mora_arreglada
+Where mora_fix <(select InvoluntaryChurnDays From parameters)
+--order by 1,2
+)
+
+,Rejoiners as(
+Select rejoiner_month,act_acct_cd as fixed_rejoiner,
+case when FixedChurnerType='1. Fixed Voluntary Churner' THEN
+case when FixedChurnerType=''
+Else null end as rejoiner_type 
+From Inactive_Users a inner join mora_inactive_users b
+ON exit_account=act_acct_cd and rejoiner_month=month
+--date_diff('month',exit_month,month)<=1
+)
+
+,rejoiners_master_table as(
+Select distinct a.*,fixed_rejoiner,rejoiner_type From ChurnersFixedTable a left join rejoiners 
+ON rejoiner_month=fixed_month and fixed_rejoiner=fixed_account
+)
+
 ,FinalTable as(
 SELECT *,CASE
 WHEN FixedChurnerType is not null THEN b_NumRGUs
@@ -300,15 +345,36 @@ ELSE NULL END AS RGU_Churn,
 
 CONCAT(coalesce(B_VO_nm,'-'),coalesce(B_TV_nm,'-'),coalesce(B_BB_nm,'-')) AS B_PLAN
 ,CONCAT(coalesce(E_VO_nm,'-'),coalesce(E_TV_nm,'-'),coalesce(E_BB_nm,'-')) AS E_PLAN
-FROM FullFixedBase_Rejoiners
+FROM rejoiners_master_table
 )
 
---Select * From FinalTable
+Select distinct Fixed_Month,rejoiner_type,count(distinct fixed_account)
+From FinalTable
+group by 1,2
+order by 1,2
 
 --/*
-Select distinct Fixed_Month,FixedChurnerType,sum(RGU_Churn) From FinalTable
+Select distinct Fixed_Month,FixedChurnerType,count(distinct fixed_account) From FinalTable
+WHERE RGU_Churn IS NOT NULL
 group by 1,2
 order by 1,2
 --*/
+--WHERE Fixed_Month=date('2022-10-01') and FixedChurnerType is not null
 
+/*
+select distinct fixed_account,count(*)
+From FinalTable
+WHERE InvolChurner IS NOT NULL --and date_trunc('Month',Fixed_Month)<>date('2022-08-01')
+group by 1
+order by 2 desc
+*/
 
+/*
+select distinct Fixed_Month,B_MIX,count(fixed_account) as NumUsers,sum(B_NumRGUs) as NumRGUs
+From FinalTable
+WHERE FixedChurnerType='2. Fixed Involuntary Churner'
+group by 1,2
+order by 1,2
+*/
+--select * From FinalTable --limit 10
+--order by 2,1
