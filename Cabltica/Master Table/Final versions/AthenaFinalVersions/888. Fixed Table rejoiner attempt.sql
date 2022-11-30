@@ -9,7 +9,7 @@ Select 90 as InvoluntaryChurnDays
 ,UsefulFields AS(
 SELECT DISTINCT DATE_TRUNC ('Month' , cast(dt as date)) AS Month,dt, act_acct_cd, pd_vo_prod_nm, 
 PD_TV_PROD_nm, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE, first_value (ACT_ACCT_INST_DT) over(PARTITION  BY act_acct_cd ORDER BY dt ASC) AS MinInst,
-first_value (ACT_ACCT_INST_DT) over(PARTITION  BY act_acct_cd ORDER BY ACT_ACCT_INST_DT DESC) AS MaxInst,CST_CHRN_DT AS ChurnDate, DATE_DIFF('DAY',cast(OLDEST_UNPAID_BILL_DT as date), cast(dt as date)) AS MORA, ACT_CONTACT_MAIL_1,act_contact_phone_1,round(FI_VO_MRC_AMT,0) AS mrcVO, round(FI_BB_MRC_AMT,0) AS mrcBB, round(FI_TV_MRC_AMT,0) AS mrcTV,round((FI_VO_MRC_AMT + FI_BB_MRC_AMT + FI_TV_MRC_AMT),0) as avgmrc, round(FI_BILL_AMT_M0,0) AS Bill, ACT_CUST_STRT_DT,
+first_value (ACT_ACCT_INST_DT) over(PARTITION  BY act_acct_cd ORDER BY ACT_ACCT_INST_DT DESC) AS MaxInst,CST_CHRN_DT AS ChurnDate, DATE_DIFF('DAY',cast(OLDEST_UNPAID_BILL_DT as date), cast(dt as date)) AS MORA, ACT_CONTACT_MAIL_1,act_contact_phone_1,round(FI_VO_MRC_AMT,0) AS mrcVO, round(FI_BB_MRC_AMT,0) AS mrcBB, round(FI_TV_MRC_AMT,0) AS mrcTV,round((FI_VO_MRC_AMT + FI_BB_MRC_AMT + FI_TV_MRC_AMT),0) as avgmrc, round(FI_BILL_AMT_M0,0) AS Bill, ACT_CUST_STRT_DT,lst_pymt_dt,
 
 CASE WHEN pd_vo_prod_nm IS NOT NULL and pd_vo_prod_nm <>'' THEN 1 ELSE 0 END AS RGU_VO,
 CASE WHEN pd_tv_prod_nm IS NOT NULL and pd_tv_prod_nm <>'' THEN 1 ELSE 0 END AS RGU_TV,
@@ -177,10 +177,10 @@ ON account_name=Fixed_Account and date_diff('Month',D_Month,Fixed_month) <=1)
 --------------------------------------------Involunary
 
 ,mora_error as(
-select distinct month,dt,act_acct_cd,maxinst,mora,prev_mora,next_mora
-,case when ( (mora-prev_mora)>2 and (mora-next_mora)>2 ) or ( (mora-prev_mora)<-2 and (mora-next_mora)<-2 ) then 1 else 0 end as mora_salto
+select distinct month,dt,act_acct_cd,maxinst,mora,prev_mora,next_mora,lst_pymt_dt,
+case when ( (mora-prev_mora)>2 and (mora-next_mora)>2 ) or ( (mora-prev_mora)<-2 and (mora-next_mora)<-2 ) then 1 else 0 end as mora_salto
 from(
-select distinct month, dt, act_acct_cd,FI_OUTST_AGE as mora, maxinst
+select distinct month, dt, act_acct_cd,FI_OUTST_AGE as mora, maxinst,lst_pymt_dt
 ,lag(fi_outst_age) over(partition by act_acct_cd order by dt desc) as next_mora
 ,lag(fi_outst_age) over(partition by act_acct_cd order by dt) as prev_mora
 FROM UsefulFields 
@@ -197,11 +197,11 @@ from mora_error
 --order by 3,2
 )
 /*
-select *
+select distinct month,mora_fix,count(distinct act_acct_cd)
 From mora_arreglada
-where act_acct_cd='1167558'
---group by 1,2
-order by act_acct_cd --1,2
+where month=date('2022-11-01')
+group by 1,2
+order by 1,2
 */
 ,FIRSTCUSTRECORD AS (
     SELECT DATE_TRUNC('MONTH',date(dt)) AS MES, act_acct_cd AS Account, min(date(dt)) AS FirstCustRecord
@@ -318,18 +318,18 @@ Where FixedChurnerType is not null
 
 ,mora_inactive_users as(
 select distinct month,mora_fix,act_acct_cd From mora_arreglada
-Where mora_fix <(select InvoluntaryChurnDays From parameters)
+Where mora_fix <=(select InvoluntaryChurnDays From parameters) or (mora_fix is null and date_trunc('Month',lst_pymt_dt)=month)
 --order by 1,2
 )
 
 ,Rejoiners as(
-Select rejoiner_month,act_acct_cd as fixed_rejoiner,
-case when FixedChurnerType='1. Fixed Voluntary Churner' THEN
-case when FixedChurnerType=''
+Select rejoiner_month,act_acct_cd as fixed_rejoiner,case 
+when FixedChurnerType='1. Fixed Voluntary Churner' THEN '1. Fixed Voluntary Rejoiner'
+when FixedChurnerType='2. Fixed Involuntary Churner' THEN '2. Fixed Involuntary Rejoiner'
 Else null end as rejoiner_type 
 From Inactive_Users a inner join mora_inactive_users b
 ON exit_account=act_acct_cd and rejoiner_month=month
---date_diff('month',exit_month,month)<=1
+--date_diff('month',exit_month,month)<=2 and date_diff('month',exit_month,month)>0
 )
 
 ,rejoiners_master_table as(
@@ -348,25 +348,48 @@ CONCAT(coalesce(B_VO_nm,'-'),coalesce(B_TV_nm,'-'),coalesce(B_BB_nm,'-')) AS B_P
 FROM rejoiners_master_table
 )
 
+--select * From FinalTable
+/*
+select * from finaltable
+where fixed_account='830031'
+order by fixed_month
+*/
+,Oct_Churners as(
+select * From FinalTable
+where fixed_month=date('2022-10-01') and FixedChurnerType='2. Fixed Involuntary Churner'
+)
+
+,Nov120 as(
+select distinct month,act_acct_cd
+From mora_arreglada
+Where mora_fix=119 and month=date('2022-11-01')
+)
+/*
 Select distinct Fixed_Month,rejoiner_type,count(distinct fixed_account)
 From FinalTable
 group by 1,2
 order by 1,2
+*/
+--,gap_users as(
+Select distinct fixed_month,fixed_account,month,act_acct_cd From oct_churners left join Nov120 
+ON date_add('Month',1,fixed_month)=month and fixed_account=act_acct_cd
+--)
 
---/*
+
+
+
+/*
+select distinct fixed_month,count (distinct fixed_account),count (distinct act_acct_cd)
+From gap_users
+group by 1
+order by 1
+*/
+
+/*
 Select distinct Fixed_Month,FixedChurnerType,count(distinct fixed_account) From FinalTable
 WHERE RGU_Churn IS NOT NULL
 group by 1,2
 order by 1,2
---*/
---WHERE Fixed_Month=date('2022-10-01') and FixedChurnerType is not null
-
-/*
-select distinct fixed_account,count(*)
-From FinalTable
-WHERE InvolChurner IS NOT NULL --and date_trunc('Month',Fixed_Month)<>date('2022-08-01')
-group by 1
-order by 2 desc
 */
 
 /*
@@ -376,5 +399,3 @@ WHERE FixedChurnerType='2. Fixed Involuntary Churner'
 group by 1,2
 order by 1,2
 */
---select * From FinalTable --limit 10
---order by 2,1
