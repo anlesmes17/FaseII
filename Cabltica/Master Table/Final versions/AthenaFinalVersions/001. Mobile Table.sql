@@ -3,7 +3,9 @@
 WITH
 
 MobileUsefulFields as(
-Select distinct date_trunc('Month',date_add('Month',1,date(fecha_parque))) as Month, replace(ID_ABONADO,'.','') as ID_ABONADO,cast(Contrato as varchar) as FixedContract,Num_Telefono,Direccion_Correo,des_segmento_cliente,
+Select distinct date_trunc('Month',date_add('Month',1,date(fecha_parque))) as Month, replace(ID_ABONADO,'.','') as ID_ABONADO,
+case when contrato is not null and contrato<>'' and contrato<>'#N/D' THen contrato
+else null end as FixedContract,Num_Telefono,Direccion_Correo,des_segmento_cliente,
 case 
 when (renta like '%#%' or renta like '%/%'or renta like 'NULL') then null -- Esta linea sirve para eliminar valores errones de renta 
 else cast(replace(coalesce(renta,'0'),',','.') as double) end as renta
@@ -21,7 +23,7 @@ WHERE DES_SEGMENTO_CLIENTE <>'Empresas - Empresas' AND DES_SEGMENTO_CLIENTE <>'E
 ,CustomerBase_BOM as(
 SELECT DISTINCT date_trunc('Month',Month) as B_Month,ID_ABONADO as B_Mobile_Account,FixedContract as B_FixedContract,Renta as B_Mobile_MRC,Num_Telefono as B_NumTelefono,Direccion_correo B_Correo, StartDate as B_StartDate
 From MobileUsefulFields
-where fixedcontract is not null
+--where fixedcontract is not null
 )
 
 ,CustomerBase_EOM as(
@@ -72,8 +74,8 @@ From MobileCustomerBase
 SELECT DISTINCT *, 
 
 CASE 
-WHEN B_FixedContract IS NOT NULL THEN cast(B_FixedContract as varchar)
-WHEN E_FixedContract IS NOT NULL THEN cast(E_FixedContract as varchar)
+WHEN b_fixedcontract is not null and b_fixedcontract<>'' and b_fixedcontract<>'#N/D' THEN cast(B_FixedContract as varchar)
+WHEN e_fixedcontract is not null and e_fixedcontract<>'' and e_fixedcontract<>'#N/D' THEN cast(E_FixedContract as varchar)
 WHEN Mobile_Account IS NOT NULL THEN cast(Mobile_Account as varchar)
 END AS FMC_Account,
 
@@ -154,4 +156,20 @@ THEN f.Mobile_Account ELSE NULL END AS Mobile_RejoinerMonth
 FROM CustomerBaseWithChurn f LEFT JOIN MobileRejoinerPopulation r ON f.Mobile_Account=r.Mobile_Account AND f.Mobile_Month=Month 
 )
 
-Select * From FullMobileBase_Rejoiners 
+select * From FullMobileBase_Rejoiners
+
+
+,prueba as(
+select * From FullMobileBase_Rejoiners where b_fixedcontract is not null and b_fixedcontract<>'' and b_fixedcontract<>'#N/D'
+)
+Select distinct mobile_month,count(distinct b_fixedcontract) From prueba
+group by 1
+order by 1,2
+
+
+/*
+Select distinct Mobile_Month,count(distinct mobile_account) From FullMobileBase_Rejoiners 
+WHERE Mobile_ActiveBOM=1 
+group by 1
+order by 1,2
+*/
