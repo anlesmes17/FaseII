@@ -126,50 +126,20 @@ m.Mobile_Month
 
 ------------------------------------------- Rejoiners ---------------------------------------------------
 
-,InactiveUsersMonth AS (
-SELECT DISTINCT Mobile_Month AS ExitMonth, Mobile_Account,DATE_ADD('Month',1, Mobile_Month) AS RejoinerMonth
-FROM MobileCustomerBase 
-WHERE Mobile_ActiveBOM=1 AND Mobile_ActiveEOM=0
-)
-
-,RejoinersPopulation AS(
-SELECT f.*,RejoinerMonth
-,CASE WHEN i.Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS RejoinerPopFlag
--- Variabilizar
-,CASE WHEN RejoinerMonth>=Mobile_Month AND RejoinerMonth<=DATE_ADD('Month',1, Mobile_Month) THEN 1 ELSE 0 END AS Mobile_PRMonth
-FROM MobileCustomerBase f LEFT JOIN InactiveUsersMonth i ON f.Mobile_Account=i.Mobile_Account AND Mobile_Month=ExitMonth
-)
-
-,MobileRejoinerPopulation AS(
-SELECT DISTINCT Mobile_Month,RejoinerPopFlag,Mobile_PRMonth,Mobile_Account,Cast('2022-02-01' as date) AS Month
-FROM RejoinersPopulation
-WHERE RejoinerPopFlag=1
-AND Mobile_PRMonth=1
-AND Mobile_Month<> cast('2022-02-01' as date)
-GROUP BY 1,2,3,4
+,inactive_users AS (
+SELECT DISTINCT mobile_month AS exit_month, Mobile_Account as mobile_rejoiner,mobile_churn_type,case
+when mobile_churn_type ='1. Mobile Voluntary Churner' then '1. Mobile Voluntary Rejoiner'
+when mobile_churn_type ='2. Mobile Involuntary Churner' then '2. Mobile Involuntary Rejoiner'
+else null end as mobile_rejoiner_type,
+DATE_ADD('Month',1, Mobile_Month) AS rejoiner_month
+FROM CustomerBaseWithChurn
+WHERE mobile_churn_type is not null
 )
 
 ,FullMobileBase_Rejoiners AS(
-SELECT DISTINCT f.*,Mobile_PRMonth
-,CASE WHEN Mobile_PRMonth=1 AND MobileMovementFlag='05.Come Back To Life'
-THEN f.Mobile_Account ELSE NULL END AS Mobile_RejoinerMonth
-FROM CustomerBaseWithChurn f LEFT JOIN MobileRejoinerPopulation r ON f.Mobile_Account=r.Mobile_Account AND f.Mobile_Month=Month 
+SELECT DISTINCT f.*,mobile_rejoiner_type
+FROM CustomerBaseWithChurn f LEFT JOIN inactive_users r ON f.Mobile_Account=r.mobile_rejoiner AND f.Mobile_Month=rejoiner_month
 )
 
 select * From FullMobileBase_Rejoiners
 
-
-,prueba as(
-select * From FullMobileBase_Rejoiners where b_fixedcontract is not null and b_fixedcontract<>'' and b_fixedcontract<>'#N/D'
-)
-Select distinct mobile_month,count(distinct b_fixedcontract) From prueba
-group by 1
-order by 1,2
-
-
-/*
-Select distinct Mobile_Month,count(distinct mobile_account) From FullMobileBase_Rejoiners 
-WHERE Mobile_ActiveBOM=1 
-group by 1
-order by 1,2
-*/
