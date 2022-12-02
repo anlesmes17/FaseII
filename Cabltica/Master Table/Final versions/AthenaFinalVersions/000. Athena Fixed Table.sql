@@ -7,7 +7,7 @@ Select 90 as InvoluntaryChurnDays
 )
 
 ,UsefulFields AS(
-SELECT DISTINCT DATE_TRUNC ('Month' , cast(dt as date)) AS Month,dt, act_acct_cd, pd_vo_prod_nm, 
+SELECT DISTINCT DATE_TRUNC ('Month' , cast(dt as date)) AS month,dt, act_acct_cd, pd_vo_prod_nm, 
 PD_TV_PROD_nm, pd_bb_prod_nm, FI_OUTST_AGE, C_CUST_AGE, first_value (ACT_ACCT_INST_DT) over(PARTITION  BY act_acct_cd ORDER BY dt ASC) AS MinInst,
 first_value (ACT_ACCT_INST_DT) over(PARTITION  BY act_acct_cd ORDER BY ACT_ACCT_INST_DT DESC) AS MaxInst,CST_CHRN_DT AS ChurnDate, DATE_DIFF('DAY',cast(OLDEST_UNPAID_BILL_DT as date), cast(dt as date)) AS MORA, ACT_CONTACT_MAIL_1,act_contact_phone_1,round(FI_VO_MRC_AMT,0) AS mrcVO, round(FI_BB_MRC_AMT,0) AS mrcBB, round(FI_TV_MRC_AMT,0) AS mrcTV,round((FI_VO_MRC_AMT + FI_BB_MRC_AMT + FI_TV_MRC_AMT),0) as avgmrc, round(FI_BILL_AMT_M0,0) AS Bill, ACT_CUST_STRT_DT,lst_pymt_dt,
 
@@ -93,14 +93,14 @@ SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS 
     SELECT DISTINCT
     CASE WHEN (accountBOM IS NOT NULL AND accountEOM IS NOT NULL) OR (accountBOM IS NOT NULL AND accountEOM IS NULL) THEN b.Month
       WHEN (accountBOM IS NULL AND accountEOM IS NOT NULL) THEN e.Month
-   END AS Fixed_Month,
+   END AS fixed_month,
      CASE WHEN (accountBOM IS NOT NULL AND accountEOM IS NOT NULL) OR (accountBOM IS NOT NULL AND accountEOM IS NULL) THEN accountBOM
       WHEN (accountBOM IS NULL AND accountEOM IS NOT NULL) THEN accountEOM
-  END AS Fixed_Account,
+  END AS fixed_account,
    CASE WHEN accountBOM IS NOT NULL THEN 1 ELSE 0 END AS ActiveBOM,
    CASE WHEN accountEOM IS NOT NULL THEN 1 ELSE 0 END AS ActiveEOM,
    
-   B_Phone,B_Date, B_VO_nm, B_TV_nm, B_BB_nm, B_RGU_VO, B_RGU_TV, B_RGU_BB, B_NumRGUs, B_Overdue, B_Tenure, B_MinInst,B_Maxinst, B_BundleName,B_MIX, B_TechFlag, B_MORA, B_VO_MRC, B_BB_MRC, B_TV_MRC, B_AVG_MRC, B_BILL_AMT,B_ACT_CUST_STRT_DT,BB_RGU_BOM,TV_RGU_BOM,VO_RGU_BOM,
+   b_phone,b_date, b_vo_nm, b_tv_nm, b_bb_nm, b_rgu_vo, b_rgu_tv, b_rgu_bb, b_NumRGUs, B_Overdue, B_Tenure, B_MinInst,B_Maxinst, B_BundleName,B_MIX, B_TechFlag, B_MORA, B_VO_MRC, B_BB_MRC, B_TV_MRC, B_AVG_MRC, B_BILL_AMT,B_ACT_CUST_STRT_DT,BB_RGU_BOM,TV_RGU_BOM,VO_RGU_BOM,
    E_phone,E_Date, E_VO_nm, E_TV_nm, E_BB_nm, E_RGU_VO, E_RGU_TV, E_RGU_BB, E_NumRGUs, E_Overdue, E_Tenure, E_MinInst,E_Maxinst, E_BundleName,E_MIX, E_TechFlag, E_MORA, E_VO_MRC, E_BB_MRC, E_TV_MRC, E_AVG_MRC, E_BILL_AMT,E_ACT_CUST_STRT_DT,BB_RGU_EOM,TV_RGU_EOM,VO_RGU_EOM
   FROM CustomerBase_BOM b FULL OUTER JOIN CustomerBase_EOM e ON b.AccountBOM = e.AccountEOM AND b.Month = e.Month
 )
@@ -196,13 +196,7 @@ else mora end as mora_fix
 from mora_error
 --order by 3,2
 )
-/*
-select distinct month,mora_fix,count(distinct act_acct_cd)
-From mora_arreglada
-where month=date('2022-11-01')
-group by 1,2
-order by 1,2
-*/
+
 ,FIRSTCUSTRECORD AS (
     SELECT DATE_TRUNC('MONTH',date(dt)) AS MES, act_acct_cd AS Account, min(date(dt)) AS FirstCustRecord
     FROM mora_arreglada
@@ -265,55 +259,20 @@ ON D_Month=Month and ChurnAccount=Account_Name
 select 
 case when Fixed_Month is not null THEN Fixed_Month else Month End as ChurnMonth,
 case when Fixed_Account is not null THEN Fixed_Account else ChurnAccount End as Churn_Account,
-case when VolChurners is not null THEN VolChurners else InvolChurner end as FixedChurnerType
+case when VolChurners is not null THEN VolChurners else InvolChurner end as fixed_churner_type
 From AllChurners
 )
 
 ,ChurnersFixedTable as(
-select f.*,FixedChurnerType FROM SPINMOVEMENTBASE f left join FinalFixedChurners b
+select f.*,fixed_churner_type FROM SPINMOVEMENTBASE f left join FinalFixedChurners b
 on Fixed_Month=ChurnMonth and Fixed_Account=Churn_Account
 )
-/*
-select * From churnersfixedtable
-where fixed_account='1038583'
-order by fixed_month
-*/
 --------------------------------------------------------------------------- Rejoiners -------------------------------------------------------------
 
-/*
-,InactiveUsersMonth AS (
-SELECT DISTINCT Fixed_Month AS ExitMonth, Fixed_Account,DATE_ADD('MONTH', 1, Fixed_Month) AS RejoinerMonth 
-FROM FixedCustomerBase 
-WHERE ActiveBOM=1 AND ActiveEOM=0
-)
---------------------Revisar la lógica de RejoinersPopulation y de FixedRejoinerFebPopulation. Creo que seguramente ya no hace falta el segundo---------
-,RejoinersPopulation AS(
-SELECT f.*,RejoinerMonth
-,CASE WHEN i.Fixed_Account IS NOT NULL THEN 1 ELSE 0 END AS RejoinerPopFlag
------- Variabilizar
-,CASE WHEN RejoinerMonth>=date('2022-10-01') AND RejoinerMonth<=DATE_ADD('MONTH', 1, date('2022-10-01') ) THEN 1 ELSE 0 END AS Fixed_PR
-FROM FixedCustomerBase f LEFT JOIN InactiveUsersMonth i ON f.Fixed_Account=i.Fixed_Account AND Fixed_Month=ExitMonth
-)
-,FixedRejoinerFebPopulation AS(
-SELECT DISTINCT Fixed_Month,RejoinerPopFlag,Fixed_PR,Fixed_Account,date('2022-10-01') AS Month
-FROM RejoinersPopulation
-WHERE RejoinerPopFlag=1
-AND Fixed_PR=1
-AND Fixed_Month<>date('2022-10-01')
-GROUP BY 1,2,3,4
-)
-,FullFixedBase_Rejoiners AS(
-SELECT DISTINCT f.*,Fixed_PR
-,CASE WHEN Fixed_PR=1 AND MainMovement='04. Come Back to Life'
-THEN 1 ELSE 0 END AS Fixed_Rejoiner
-FROM ChurnersFixedTable f LEFT JOIN FixedRejoinerFebPopulation r ON f.Fixed_Account=r.Fixed_Account AND f.Fixed_Month=CAST(r.Month AS DATE)
-)
-*/
-
 ,Inactive_Users as(
-Select Distinct Fixed_Month as exit_month, fixed_account as exit_account,FixedChurnerType,date_add('month', 1, Fixed_Month) AS rejoiner_month
+Select Distinct Fixed_Month as exit_month, fixed_account as exit_account,fixed_churner_type,date_add('month', 1, Fixed_Month) AS rejoiner_month
 From ChurnersFixedTable
-Where FixedChurnerType is not null
+Where fixed_churner_type is not null
 )
 
 ,mora_inactive_users as(
@@ -324,22 +283,22 @@ Where mora_fix <=(select InvoluntaryChurnDays From parameters) or (mora_fix is n
 
 ,Rejoiners as(
 Select rejoiner_month,act_acct_cd as fixed_rejoiner,case 
-when FixedChurnerType='1. Fixed Voluntary Churner' THEN '1. Fixed Voluntary Rejoiner'
-when FixedChurnerType='2. Fixed Involuntary Churner' THEN '2. Fixed Involuntary Rejoiner'
-Else null end as rejoiner_type 
+when fixed_churner_type='1. Fixed Voluntary Churner' THEN '1. Fixed Voluntary Rejoiner'
+when fixed_churner_type='2. Fixed Involuntary Churner' THEN '2. Fixed Involuntary Rejoiner'
+Else null end as fixed_rejoiner_type 
 From Inactive_Users a inner join mora_inactive_users b
 ON exit_account=act_acct_cd and rejoiner_month=month
 --date_diff('month',exit_month,month)<=2 and date_diff('month',exit_month,month)>0
 )
 
 ,rejoiners_master_table as(
-Select distinct a.*,fixed_rejoiner,rejoiner_type From ChurnersFixedTable a left join rejoiners 
+Select distinct a.*,fixed_rejoiner,fixed_rejoiner_type From ChurnersFixedTable a left join rejoiners 
 ON rejoiner_month=fixed_month and fixed_rejoiner=fixed_account
 )
 
 ,FinalTable as(
 SELECT *,CASE
-WHEN FixedChurnerType is not null THEN b_NumRGUs
+WHEN fixed_churner_type is not null THEN b_NumRGUs
 WHEN MainMovement='03. Downsell' THEN (B_NumRGUs - E_NumRGUs)
 ELSE NULL END AS RGU_Churn,
 
@@ -348,15 +307,13 @@ CONCAT(coalesce(B_VO_nm,'-'),coalesce(B_TV_nm,'-'),coalesce(B_BB_nm,'-')) AS B_P
 FROM rejoiners_master_table
 )
 
---select * From FinalTable
-/*
-select * from finaltable
-where fixed_account='830031'
-order by fixed_month
-*/
+select * From FinalTable
+where fixed_account='1299933'
+order by 1
+
 ,Oct_Churners as(
 select * From FinalTable
-where fixed_month=date('2022-10-01') and FixedChurnerType='2. Fixed Involuntary Churner'
+where fixed_month=date('2022-10-01') and fixed_churner_type='2. Fixed Involuntary Churner'
 )
 
 ,Nov120 as(
@@ -365,18 +322,21 @@ From mora_arreglada
 Where mora_fix=119 and month=date('2022-11-01')
 )
 /*
-Select distinct Fixed_Month,rejoiner_type,count(distinct fixed_account)
+Select distinct Fixed_Month,fixed_rejoiner_type,count(distinct fixed_account)
 From FinalTable
 group by 1,2
 order by 1,2
 */
---,gap_users as(
+,gap_users as(
 Select distinct fixed_month,fixed_account,month,act_acct_cd From oct_churners left join Nov120 
 ON date_add('Month',1,fixed_month)=month and fixed_account=act_acct_cd
+where month=date('2022-11-01')
+)
+
+--,gap_table as(
+select a.Fixed_Month as Month,a.Fixed_Account as act_acct_cd,b_vo_nm as pd_vo_prod_nm,b_tv_nm as pd_tv_prod_nm,b_bb_nm as pd_bb_prod_nm From FinalTable a inner join gap_users b 
+ON a.Fixed_Month=b.month and a.Fixed_Account=b.act_acct_cd
 --)
-
-
-
 
 /*
 select distinct fixed_month,count (distinct fixed_account),count (distinct act_acct_cd)
@@ -386,7 +346,7 @@ order by 1
 */
 
 /*
-Select distinct Fixed_Month,FixedChurnerType,count(distinct fixed_account) From FinalTable
+Select distinct Fixed_Month,fixed_churner_type,count(distinct fixed_account) From FinalTable
 WHERE RGU_Churn IS NOT NULL
 group by 1,2
 order by 1,2
@@ -395,7 +355,7 @@ order by 1,2
 /*
 select distinct Fixed_Month,B_MIX,count(fixed_account) as NumUsers,sum(B_NumRGUs) as NumRGUs
 From FinalTable
-WHERE FixedChurnerType='2. Fixed Involuntary Churner'
+WHERE fixed_churner_type='2. Fixed Involuntary Churner'
 group by 1,2
 order by 1,2
 */
