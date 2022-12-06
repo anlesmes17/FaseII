@@ -45,8 +45,8 @@ END AS Mobile_Account,
 
 
 
-CASE WHEN B_Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS Mobile_ActiveBOM,
-CASE WHEN E_Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS Mobile_ActiveEOM,
+CASE WHEN B_Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS mobile_active_bom,
+CASE WHEN E_Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS mobile_active_eom,
 
 B_FixedContract,B_NumTelefono,B_Correo,B_Mobile_MRC,B_StartDate,
 E_FixedContract,E_NumTelefono,E_Correo,E_Mobile_MRC,E_StartDate
@@ -80,12 +80,12 @@ WHEN Mobile_Account IS NOT NULL THEN cast(Mobile_Account as varchar)
 END AS FMC_Account,
 
 CASE
-WHEN Mobile_ActiveBOM =1 AND Mobile_ActiveEOM =1 AND(B_Mobile_MRC=E_Mobile_MRC) THEN '01.Maintain'
-WHEN Mobile_ActiveBOM =1 AND Mobile_ActiveEOM =1 AND(B_Mobile_MRC>E_Mobile_MRC) THEN '02.Downspin'
-WHEN Mobile_ActiveBOM =1 AND Mobile_ActiveEOM =1 AND(B_Mobile_MRC<E_Mobile_MRC) THEN '03.Upspin'
-WHEN Mobile_ActiveBOM =1 AND Mobile_ActiveEOM =0 THEN '04.Loss'
---WHEN (Mobile_ActiveBOM=0 OR Mobile_ActiveBOM IS NULL)  AND Mobile_ActiveEOM=1 AND E_StartDate <>Mobile_Month THEN '05.Come Back To Life'
---WHEN (Mobile_ActiveBOM=0 OR Mobile_ActiveBOM IS NULL)  AND Mobile_ActiveEOM=1 AND E_StartDate =Mobile_Month THEN '06.New Customer'
+WHEN mobile_active_bom =1 AND mobile_active_eom =1 AND(B_Mobile_MRC=E_Mobile_MRC) THEN '01.Maintain'
+WHEN mobile_active_bom =1 AND mobile_active_eom =1 AND(B_Mobile_MRC>E_Mobile_MRC) THEN '02.Downspin'
+WHEN mobile_active_bom =1 AND mobile_active_eom =1 AND(B_Mobile_MRC<E_Mobile_MRC) THEN '03.Upspin'
+WHEN mobile_active_bom =1 AND mobile_active_eom =0 THEN '04.Loss'
+--WHEN (mobile_active_bom=0 OR mobile_active_bom IS NULL)  AND mobile_active_eom=1 AND E_StartDate <>Mobile_Month THEN '05.Come Back To Life'
+--WHEN (mobile_active_bom=0 OR mobile_active_bom IS NULL)  AND mobile_active_eom=1 AND E_StartDate =Mobile_Month THEN '06.New Customer'
 WHEN (B_Mobile_MRC IS NULL OR E_Mobile_MRC IS NULL) THEN '07.MRC Gap'
 ELSE NULL END AS MobileMovementFlag
 From FlagTenureCutomerBase
@@ -96,7 +96,7 @@ From FlagTenureCutomerBase
 ,MobileChurners as(
 SELECT *, '1. Mobile Churner' as MobileChurnFlag
 FROM MainMovements
-WHERE Mobile_ActiveBOM=1 AND Mobile_ActiveEOM=0
+WHERE mobile_active_bom=1 AND mobile_active_eom=0
 )
 ,Movements as(
 Select *, CASE
