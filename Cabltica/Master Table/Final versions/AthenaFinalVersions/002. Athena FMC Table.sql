@@ -239,4 +239,10 @@ else null end as Downsell_Split
 ,case when waterfall_flag='Downspin' then 'Voluntary' else null end as Downspin_Split
 from FullCustomersBase_Flags_Waterfall
 )
-select * from last_flags
+select * from Last_Flags limit 10
+
+/*
+select distinct month,b_fmc_type,count(distinct final_account) from last_flags
+where month=date('2022-10-01') and Final_BOM_ActiveFlag=1 --and Final_EOM_ActiveFlag=0
+group by 1,2
+*/
