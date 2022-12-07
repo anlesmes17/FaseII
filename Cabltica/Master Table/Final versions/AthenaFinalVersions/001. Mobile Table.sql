@@ -21,49 +21,49 @@ WHERE DES_SEGMENTO_CLIENTE <>'Empresas - Empresas' AND DES_SEGMENTO_CLIENTE <>'E
 )
 
 ,CustomerBase_BOM as(
-SELECT DISTINCT date_trunc('Month',Month) as B_Month,ID_ABONADO as B_Mobile_Account,FixedContract as B_FixedContract,Renta as B_Mobile_MRC,Num_Telefono as B_NumTelefono,Direccion_correo B_Correo, StartDate as B_StartDate
+SELECT DISTINCT date_trunc('Month',Month) as B_Month,ID_ABONADO as B_mobile_account,FixedContract as b_fixed_contract,Renta as b_mobile_mrc,Num_Telefono as b_num_telefono,Direccion_correo b_correo, StartDate as b_start_date
 From MobileUsefulFields
 --where fixedcontract is not null
 )
 
 ,CustomerBase_EOM as(
-SELECT DISTINCT date_trunc('Month',date_add('Month',-1,Month)) as E_Month,ID_ABONADO as E_Mobile_Account,cast(FixedContract as varchar) as E_FixedContract,Renta as E_Mobile_MRC,Num_Telefono as E_NumTelefono,Direccion_correo as E_Correo, StartDate as E_StartDate
+SELECT DISTINCT date_trunc('Month',date_add('Month',-1,Month)) as E_Month,ID_ABONADO as E_mobile_account,cast(FixedContract as varchar) as e_fixed_contract,Renta as e_mobile_mrc,Num_Telefono as e_num_telefono,Direccion_correo as e_correo, StartDate as e_start_date
 From MobileUsefulFields
 )
 
 ,MobileCustomerBase as(
 SELECT DISTINCT
-CASE WHEN (B_Mobile_Account IS NOT NULL AND E_Mobile_Account IS NOT NULL) OR (B_Mobile_Account IS NOT NULL AND 
-E_Mobile_Account IS NULL) THEN B_Month
-WHEN (B_Mobile_Account IS NULL AND E_Mobile_Account IS NOT NULL) THEN E_Month
-END AS Mobile_Month,
+CASE WHEN (B_mobile_account IS NOT NULL AND E_mobile_account IS NOT NULL) OR (B_mobile_account IS NOT NULL AND 
+E_mobile_account IS NULL) THEN B_Month
+WHEN (B_mobile_account IS NULL AND E_mobile_account IS NOT NULL) THEN E_Month
+END AS mobile_month,
 
-CASE WHEN (B_Mobile_Account IS NOT NULL AND E_Mobile_Account IS NOT NULL) OR (B_Mobile_Account IS NOT NULL AND 
-E_Mobile_Account IS NULL) THEN B_Mobile_Account
-WHEN (B_Mobile_Account IS NULL AND E_Mobile_Account IS NOT NULL) THEN E_Mobile_Account
-END AS Mobile_Account,
+CASE WHEN (B_mobile_account IS NOT NULL AND E_mobile_account IS NOT NULL) OR (B_mobile_account IS NOT NULL AND 
+E_mobile_account IS NULL) THEN B_mobile_account
+WHEN (B_mobile_account IS NULL AND E_mobile_account IS NOT NULL) THEN E_mobile_account
+END AS mobile_account,
 
 
 
-CASE WHEN B_Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS mobile_active_bom,
-CASE WHEN E_Mobile_Account IS NOT NULL THEN 1 ELSE 0 END AS mobile_active_eom,
+CASE WHEN B_mobile_account IS NOT NULL THEN 1 ELSE 0 END AS mobile_active_bom,
+CASE WHEN E_mobile_account IS NOT NULL THEN 1 ELSE 0 END AS mobile_active_eom,
 
-B_FixedContract,B_NumTelefono,B_Correo,B_Mobile_MRC,B_StartDate,
-E_FixedContract,E_NumTelefono,E_Correo,E_Mobile_MRC,E_StartDate
-FROM CustomerBase_BOM b FULL OUTER JOIN CustomerBase_EOM e ON B_Mobile_Account=E_Mobile_Account AND 
+b_fixed_contract,b_num_telefono,b_correo,b_mobile_mrc,b_start_date,
+e_fixed_contract,e_num_telefono,e_correo,e_mobile_mrc,e_start_date
+FROM CustomerBase_BOM b FULL OUTER JOIN CustomerBase_EOM e ON B_mobile_account=E_mobile_account AND 
 B_Month=E_Month
 )
 
 
 ,FlagTenureCutomerBase as(
-SELECT DISTINCT *, date_diff('Month',cast(B_StartDate as date),cast(Mobile_Month as date)) AS Mobile_B_TenureDays,
-CASE WHEN date_diff('Month',cast(B_StartDate as date),cast(Mobile_Month as date)) <6 THEN 'Early Tenure'
-WHEN date_diff('Month',cast(B_StartDate as date),cast(Mobile_Month as date)) >=6 THEN 'Late Tenure'
-ELSE NULL END AS B_MobileTenureSegment,
-date_diff('Month',cast(E_StartDate as date),cast(Mobile_Month as date)) AS Mobile_E_TenureDays,
-CASE WHEN date_diff('Month',cast(E_StartDate as date),cast(Mobile_Month as date)) <6 THEN 'Early Tenure'
-WHEN date_diff('Month',cast(E_StartDate as date),cast(Mobile_Month as date)) >=6 THEN 'Late Tenure'
-ELSE NULL END AS E_MobileTenureSegment
+SELECT DISTINCT *, date_diff('Month',cast(b_start_date as date),cast(mobile_month as date)) AS b_mobile_tenure_days,
+CASE WHEN date_diff('Month',cast(b_start_date as date),cast(mobile_month as date)) <6 THEN 'Early Tenure'
+WHEN date_diff('Month',cast(b_start_date as date),cast(mobile_month as date)) >=6 THEN 'Late Tenure'
+ELSE NULL END AS b_mobile_tenure_segment,
+date_diff('Month',cast(e_start_date as date),cast(mobile_month as date)) AS e_mobile_tenure_days,
+CASE WHEN date_diff('Month',cast(e_start_date as date),cast(mobile_month as date)) <6 THEN 'Early Tenure'
+WHEN date_diff('Month',cast(e_start_date as date),cast(mobile_month as date)) >=6 THEN 'Late Tenure'
+ELSE NULL END AS e_mobile_tenure_segment
 From MobileCustomerBase
 )
 
@@ -74,20 +74,20 @@ From MobileCustomerBase
 SELECT DISTINCT *, 
 
 CASE 
-WHEN b_fixedcontract is not null and b_fixedcontract<>'' and b_fixedcontract<>'#N/D' THEN cast(B_FixedContract as varchar)
-WHEN e_fixedcontract is not null and e_fixedcontract<>'' and e_fixedcontract<>'#N/D' THEN cast(E_FixedContract as varchar)
-WHEN Mobile_Account IS NOT NULL THEN cast(Mobile_Account as varchar)
-END AS FMC_Account,
+WHEN b_fixed_contract is not null and b_fixed_contract<>'' and b_fixed_contract<>'#N/D' THEN cast(b_fixed_contract as varchar)
+WHEN e_fixed_contract is not null and e_fixed_contract<>'' and e_fixed_contract<>'#N/D' THEN cast(e_fixed_contract as varchar)
+WHEN mobile_account IS NOT NULL THEN cast(mobile_account as varchar)
+END AS fmc_account,
 
 CASE
-WHEN mobile_active_bom =1 AND mobile_active_eom =1 AND(B_Mobile_MRC=E_Mobile_MRC) THEN '01.Maintain'
-WHEN mobile_active_bom =1 AND mobile_active_eom =1 AND(B_Mobile_MRC>E_Mobile_MRC) THEN '02.Downspin'
-WHEN mobile_active_bom =1 AND mobile_active_eom =1 AND(B_Mobile_MRC<E_Mobile_MRC) THEN '03.Upspin'
+WHEN mobile_active_bom =1 AND mobile_active_eom =1 AND(b_mobile_mrc=e_mobile_mrc) THEN '01.Maintain'
+WHEN mobile_active_bom =1 AND mobile_active_eom =1 AND(b_mobile_mrc>e_mobile_mrc) THEN '02.Downspin'
+WHEN mobile_active_bom =1 AND mobile_active_eom =1 AND(b_mobile_mrc<e_mobile_mrc) THEN '03.Upspin'
 WHEN mobile_active_bom =1 AND mobile_active_eom =0 THEN '04.Loss'
---WHEN (mobile_active_bom=0 OR mobile_active_bom IS NULL)  AND mobile_active_eom=1 AND E_StartDate <>Mobile_Month THEN '05.Come Back To Life'
---WHEN (mobile_active_bom=0 OR mobile_active_bom IS NULL)  AND mobile_active_eom=1 AND E_StartDate =Mobile_Month THEN '06.New Customer'
-WHEN (B_Mobile_MRC IS NULL OR E_Mobile_MRC IS NULL) THEN '07.MRC Gap'
-ELSE NULL END AS MobileMovementFlag
+--WHEN (mobile_active_bom=0 OR mobile_active_bom IS NULL)  AND mobile_active_eom=1 AND e_start_date <>mobile_month THEN '05.Come Back To Life'
+--WHEN (mobile_active_bom=0 OR mobile_active_bom IS NULL)  AND mobile_active_eom=1 AND e_start_date =mobile_month THEN '06.New Customer'
+WHEN (b_mobile_mrc IS NULL OR e_mobile_mrc IS NULL) THEN '07.MRC Gap'
+ELSE NULL END AS mobile_movement_flag
 From FlagTenureCutomerBase
 )
 
@@ -111,7 +111,7 @@ From "cr_ext_mov_temp"
 ,ChurnersMovements as(
 SELECT M.*,mobile_churn_type
 FROM MobileChurners m LEFT JOIN Movements
-ON Mobile_Account=cast(ID_Abonado as varchar) AND Date_trunc('Month',Mobile_Month)=Date_TRUNC('Month',date(dt))
+ON mobile_account=cast(ID_Abonado as varchar) AND Date_trunc('Month',mobile_month)=Date_TRUNC('Month',date(dt))
 )
 
 ,CustomerBaseWithChurn AS (
@@ -119,27 +119,26 @@ SELECT DISTINCT m.*,
 case when mobile_churn_type is not null then mobile_churn_type
 else '3. Mobile NonChurner' end as mobile_churn_flag, 
 c.mobile_churn_type
-FROM MainMovements m LEFT JOIN ChurnersMovements c ON m.Mobile_Account=c.Mobile_Account 
-and c.Mobile_Month=
-m.Mobile_Month
+FROM MainMovements m LEFT JOIN ChurnersMovements c ON m.mobile_account=c.mobile_account 
+and c.mobile_month=
+m.mobile_month
 )
 
 ------------------------------------------- Rejoiners ---------------------------------------------------
 
 ,inactive_users AS (
-SELECT DISTINCT mobile_month AS exit_month, Mobile_Account as mobile_rejoiner,mobile_churn_type,case
+SELECT DISTINCT mobile_month AS exit_month, mobile_account as mobile_rejoiner,mobile_churn_type,case
 when mobile_churn_type ='1. Mobile Voluntary Churner' then '1. Mobile Voluntary Rejoiner'
 when mobile_churn_type ='2. Mobile Involuntary Churner' then '2. Mobile Involuntary Rejoiner'
 else null end as mobile_rejoiner_type,
-DATE_ADD('Month',1, Mobile_Month) AS rejoiner_month
+DATE_ADD('Month',1, mobile_month) AS rejoiner_month
 FROM CustomerBaseWithChurn
 WHERE mobile_churn_type is not null
 )
 
 ,FullMobileBase_Rejoiners AS(
 SELECT DISTINCT f.*,mobile_rejoiner_type
-FROM CustomerBaseWithChurn f LEFT JOIN inactive_users r ON f.Mobile_Account=r.mobile_rejoiner AND f.Mobile_Month=rejoiner_month
+FROM CustomerBaseWithChurn f LEFT JOIN inactive_users r ON f.mobile_account=r.mobile_rejoiner AND f.mobile_month=rejoiner_month
 )
 
 select * From FullMobileBase_Rejoiners
-
