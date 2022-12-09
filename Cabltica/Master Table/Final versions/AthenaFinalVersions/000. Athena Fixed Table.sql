@@ -102,7 +102,7 @@ CASE WHEN RGU_TV= 1 THEN act_acct_cd ELSE NULL END As TV_RGU_BOM,
 CASE WHEN RGU_VO= 1 THEN act_acct_cd ELSE NULL END As VO_RGU_BOM
 */
     FROM mora_useful_fields c 
-    WHERE ((date(dt) = DATE_TRUNC('Month', date(dt)) and DATE_TRUNC('Month', date(dt))<>date('2022-10-01')) OR dt='2022-10-05') and (mora_fix<= 90 or mora_fix is null)
+    WHERE ((date(dt) = DATE_TRUNC('Month', date(dt)) and DATE_TRUNC('Month', date(dt))<>date('2022-10-01')) OR dt='2022-10-01' OR dt='2022-12-02') and (mora_fix<= 90 or mora_fix is null)
 )
 
 
@@ -126,7 +126,7 @@ SELECT DISTINCT DATE_TRUNC('month', DATE_add('month', -1, cast(dt as date))) AS 
     CASE WHEN RGU_VO= 1 THEN act_acct_cd ELSE NULL END As VO_RGU_EOM
 */  
     FROM mora_useful_fields c 
-    WHERE ((date(dt) = DATE_TRUNC('Month', date(dt)) and DATE_TRUNC('Month', date(dt))<>date('2022-10-01')) OR dt='2022-10-05') and (mora_fix< 90 or mora_fix is null)
+    WHERE ((date(dt) = DATE_TRUNC('Month', date(dt)) and DATE_TRUNC('Month', date(dt))<>date('2022-10-01')) OR dt='2022-10-01' OR dt='2022-12-02') and (mora_fix< 90 or mora_fix is null)
 )
 
 ,FixedCustomerBase AS(
@@ -202,7 +202,8 @@ From spin_movementBASE
 WHERE active_bom=1 and (active_eom=0 or active_eom is null) 
 )
 
-,max_rgus as( select distinct act_acct_cd,sum(vo+bb+tv) as max_rgus_count from(
+,max_rgus as( 
+select distinct act_acct_cd,sum(vo+bb+tv) as max_rgus_count from(
 select distinct act_acct_cd,
 case when first_value (pd_vo_prod_nm) over(PARTITION  BY act_acct_cd ORDER BY dt) is not null then 1 else 0 end as vo,
 case when first_value (pd_bb_prod_nm) over(PARTITION  BY act_acct_cd ORDER BY dt) is not null then 1 else 0 end as bb,
@@ -294,7 +295,8 @@ ON Fixed_month=Month and ChurnAccount=Fixed_Account
 select 
 case when Month is not null THEN Month else fixed_Month End as ChurnMonth,
 case when ChurnAccount is not null THEN ChurnAccount else Fixed_Account End as Churn_Account,
-case when InvolChurner is not null and VolChurners is not null then InvolChurner
+case 
+when InvolChurner is not null and VolChurners is not null then InvolChurner
 when InvolChurner is not null then InvolChurner
 when VolChurners  is not null then VolChurners 
 end as fixed_churner_type,
@@ -303,7 +305,8 @@ From AllChurners
 )
 
 ,ChurnersFixedTable as(
-select f.*,fixed_churner_type,invol_rgu_churn,max_rgus_count FROM spin_movementBASE f left join FinalFixedChurners b
+select f.*, case when active_eom=1 then null else fixed_churner_type end as fixed_churner_type,
+invol_rgu_churn,max_rgus_count FROM spin_movementBASE f left join FinalFixedChurners b
 on Fixed_Month=ChurnMonth and Fixed_Account=Churn_Account
 )
 --------------------------------------------------------------------------- Rejoiners -------------------------------------------------------------
@@ -340,14 +343,25 @@ SELECT *,CASE
 WHEN fixed_churner_type='2. Fixed Involuntary Churner' then invol_rgu_churn
 WHEN fixed_churner_type='1. Fixed Voluntary Churner' THEN max_rgus_count
 WHEN main_movement='03. Downsell' THEN (b_num_rgus - e_num_rgus)
-ELSE NULL END AS rgu_churn,
+ELSE 0 END AS fixed_rgu_churn,
 
 CONCAT(coalesce(b_vo_nm,'-'),coalesce(b_tv_nm,'-'),coalesce(b_bb_nm,'-')) AS b_plan
 ,CONCAT(coalesce(e_vo_nm,'-'),coalesce(e_tv_nm,'-'),coalesce(e_bb_nm,'-')) AS e_plan
 FROM rejoiners_master_table
 )
-select * from FinalTable
+--/*
+Select * From FinalTable
+where Fixed_Month=date('2022-10-01') and 
+where fixed_account='1157408'
+order by fixed_month
+*/
+--/*
+select distinct fixed_month,fixed_churner_type,count(distinct fixed_account) from FinalTable
+where rgu_churn is not null 
+group by 1,2
+--*/
 
+/*
 ,with_rgus as(
 select distinct month,dt as date_with_rgus,act_acct_cd,pd_vo_prod_nm,pd_bb_prod_nm,pd_tv_prod_nm from usefulfields
 where pd_vo_prod_nm is not null or pd_bb_prod_nm is not null or pd_tv_prod_nm is not null --and month=date('2022-09-01')
@@ -371,7 +385,7 @@ and date(b.date_with_rgus)>date('2022-10-05')
 
 select distinct without_month,count(distinct without_account) from intermitent_users
 group by 1
-
+*/
 
 
 /*
