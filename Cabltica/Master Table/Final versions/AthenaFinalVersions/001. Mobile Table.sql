@@ -56,11 +56,11 @@ B_Month=E_Month
 
 
 ,FlagTenureCutomerBase as(
-SELECT DISTINCT *, date_diff('Month',cast(b_start_date as date),cast(mobile_month as date)) AS b_mobile_tenure_days,
+SELECT DISTINCT *, date_diff('Month',cast(b_start_date as date),cast(mobile_month as date)) AS b_mobile_tenure_months,
 CASE WHEN date_diff('Month',cast(b_start_date as date),cast(mobile_month as date)) <6 THEN 'Early Tenure'
 WHEN date_diff('Month',cast(b_start_date as date),cast(mobile_month as date)) >=6 THEN 'Late Tenure'
 ELSE NULL END AS b_mobile_tenure_segment,
-date_diff('Month',cast(e_start_date as date),cast(mobile_month as date)) AS e_mobile_tenure_days,
+date_diff('Month',cast(e_start_date as date),cast(mobile_month as date)) AS e_mobile_tenure_months,
 CASE WHEN date_diff('Month',cast(e_start_date as date),cast(mobile_month as date)) <6 THEN 'Early Tenure'
 WHEN date_diff('Month',cast(e_start_date as date),cast(mobile_month as date)) >=6 THEN 'Late Tenure'
 ELSE NULL END AS e_mobile_tenure_segment
@@ -143,3 +143,4 @@ FROM CustomerBaseWithChurn f LEFT JOIN inactive_users r ON f.mobile_account=r.mo
 )
 
 select * From FullMobileBase_Rejoiners
+--limit 10
