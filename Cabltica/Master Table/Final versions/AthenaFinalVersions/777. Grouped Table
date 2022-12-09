@@ -1,0 +1,16 @@
+SELECT distinct month,final_bom_active_flag,final_eom_active_flag
+,active_bom,active_eom,b_fixed_tenure_segment,cast(round(b_bill_amt,0) as int) as b_fixed_mrc,b_tech_flag,b_num_rgus,b_mix,b_bundle_name,b_bb_nm,b_tv_nm,b_vo_nm,e_date,e_fixed_tenure_segment,cast(round(e_bill_amt,0) as int),e_tech_flag,e_num_rgus,e_mix,e_bundle_name,e_bb_nm, e_tv_nm,e_vo_nm,main_movement,spin_movement,fixed_churner_type
+,mobile_active_bom,mobile_active_eom,b_start_date
+,b_mobile_tenure_segment,e_start_date
+,e_mobile_tenure_segment,mobile_movement_flag,mobile_churn_flag,mobile_churn_type
+,final_churn_flag ,churn_type_final_flag,b_tenure_final_flag,e_tenure_final_flag,b_final_tech_flag,e_final_tech_flag,b_fmc_type,e_fmc_type,b_fmc_segment,e_fmc_segment,fixed_rejoiner_type,mobile_rejoiner_type,waterfall_flag,Downsell_Split,Downspin_Split
+,fixed_month,mobile_month,b_total_rgus,e_total_rgus,Partial_Total_Churn_Flag
+,count(distinct final_account) as final_account,count(distinct fixed_account) as fixed_account,count(distinct mobile_account) as mobile_account,sum(cast(round(b_total_mrc,0) as int)) as b_total_mrc,sum(cast(round(e_total_mrc,0) as int)) as e_total_mrc
+from "lla_cco_int_san"."cr_fmc_table"
+where month = date('2022-10-01')
+group by 1,2,3,4,5,6,7 ,8
+,9,10,11,12,13,14,15,16,17,18,19,20,21,22
+,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44
+,45,46,47,48
+,49,50,51
+,52,53,54,55,56
