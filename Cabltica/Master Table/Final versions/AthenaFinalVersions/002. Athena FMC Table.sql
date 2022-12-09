@@ -187,7 +187,7 @@ ELSE 'Non Churner' END AS final_churn_flag
 ,(coalesce(b_num_rgus,0) + coalesce(b_mobile_rgus,0))/contracts_fix as b_total_rgus
 ,(coalesce(e_num_rgus,0) + coalesce(e_mobile_rgus,0))/contracts_fix AS e_total_rgus
 ,round(e_total_mrc,0) - round(b_total_mrc,0) AS mrc_change
-,(coalesce(fixed_rgu_churn,0) + coalesce(mobile_rgu_churn,0))/contracts_fix as total_rgu_churn
+,(coalesce(fixed_rgu_churn,0)/contracts_fix + coalesce(mobile_rgu_churn,0)) as total_rgu_churn
 FROM CustomerBase_FMC_Tech_Flags c
 )
 
@@ -216,6 +216,7 @@ when fixed_churner_type='1. Fixed Voluntary Churner' Then 'Voluntary'
 when mobile_churn_type='1. Mobile Voluntary Churner'   Then 'Voluntary'
 when fixed_churner_type='2. Fixed Involuntary Churner' Then 'Involuntary'
 when mobile_churn_type='2. Mobile Involuntary Churner' Then 'Involuntary'
+when main_movement='03. Downsell' then 'Voluntary'
 End as churn_type_final_flag
 ,case
 when final_churn_flag<>'Non Churner' then final_churn_flag
@@ -253,14 +254,27 @@ else null end as downsell_split
 from FullCustomersBase_Flags_Waterfall
 )
 
+select distinct month,sum(total_rgu_churn) from last_flags
+where month=date('2022-10-01')
+group by 1
+
+/*
+select distinct month,fixed_churner_type,partial_total_churn_flag,count(distinct final_account),sum(total_rgu_churn) from last_flags
+where month=date('2022-10-01') and fixed_rgu_churn is not null
+group by 1,2,3
+*/
+
+--where mobile_movement_flag='02.Downspin'
+--limit 50
+
 --select * from Last_Flags 
 --where month=date('2022-10-01')
 --limit 50
 
 
-select distinct month,churn_type_final_flag,sum(total_rgu_churn) from Last_Flags
-where month=date('2022-10-01') 
-group by 1,2
+--select distinct month,churn_type_final_flag,sum(total_rgu_churn) from Last_Flags
+--where month=date('2022-10-01') 
+--group by 1,2
 
 /*
 select distinct month,b_fmc_type,count(distinct fixed_account) from last_flags
