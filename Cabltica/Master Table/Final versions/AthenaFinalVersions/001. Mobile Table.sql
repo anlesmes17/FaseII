@@ -118,7 +118,8 @@ ON mobile_account=cast(ID_Abonado as varchar) AND Date_trunc('Month',mobile_mont
 SELECT DISTINCT m.*,
 case when mobile_churn_type is not null then mobile_churn_type
 else '3. Mobile NonChurner' end as mobile_churn_flag, 
-c.mobile_churn_type
+c.mobile_churn_type,case
+when mobile_churn_type is not null then 1 else 0 end as mobile_rgu_churn
 FROM MainMovements m LEFT JOIN ChurnersMovements c ON m.mobile_account=c.mobile_account 
 and c.mobile_month=
 m.mobile_month
